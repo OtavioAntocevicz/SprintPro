@@ -4,8 +4,8 @@
   "license": "SEE LICENSE IN ../LICENSE",
   "type": "module",
   "scripts": {
-    "start": "node server.mjs",
-    "dev": "node --watch server.mjs"
+    "start": "node app.mjs",
+    "dev": "node --watch app.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",

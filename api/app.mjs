@@ -222,6 +222,7 @@ function authRateLimit(req, res, next) {
 const corsOrigins = new Set([
   'http://localhost:5173',
   'http://127.0.0.1:5173',
+  ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL.trim()] : []),
   ...(process.env.ALLOWED_ORIGINS ?? '')
     .split(',')
@@ -1010,13 +1011,17 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Erro interno' })
 })
 
-app.listen(PORT, async () => {
-  console.log(`SprintPro API a escutar em http://127.0.0.1:${PORT}`)
-  console.log('[DB] Driver @neondatabase/serverless (WebSocket) — evita ECONNRESET comuns do `pg` + TLS no Windows.')
-  try {
-    await pool.query('SELECT 1')
-    console.log('[DB] Teste `SELECT 1` ao Neon: OK')
-  } catch (e) {
-    console.error('[DB] Não foi possível ligar ao Neon:', e?.message || e)
-  }
-})
+export default app
+
+if (!process.env.VERCEL) {
+  app.listen(PORT, async () => {
+    console.log(`SprintPro API a escutar em http://127.0.0.1:${PORT}`)
+    console.log('[DB] Driver @neondatabase/serverless (WebSocket) — evita ECONNRESET comuns do `pg` + TLS no Windows.')
+    try {
+      await pool.query('SELECT 1')
+      console.log('[DB] Teste `SELECT 1` ao Neon: OK')
+    } catch (e) {
+      console.error('[DB] Não foi possível ligar ao Neon:', e?.message || e)
+    }
+  })
+}
