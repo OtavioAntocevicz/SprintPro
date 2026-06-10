@@ -223,6 +223,10 @@ const corsOrigins = new Set([
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+  ...(process.env.VERCEL_BRANCH_URL ? [`https://${process.env.VERCEL_BRANCH_URL}`] : []),
+  ...(process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? [`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`]
+    : []),
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL.trim()] : []),
   ...(process.env.ALLOWED_ORIGINS ?? '')
     .split(',')
@@ -230,14 +234,24 @@ const corsOrigins = new Set([
     .filter(Boolean),
 ])
 
+function isAllowedCorsOrigin(origin) {
+  if (!origin) return true
+  if (corsOrigins.has(origin)) return true
+  try {
+    const { hostname, protocol } = new URL(origin)
+    if (protocol !== 'http:' && protocol !== 'https:') return false
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return true
+    if (hostname.endsWith('.vercel.app')) return true
+  } catch {
+    return false
+  }
+  return false
+}
+
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || corsOrigins.has(origin)) {
-        callback(null, true)
-        return
-      }
-      callback(new Error(`Origem não permitida pelo CORS: ${origin}`))
+      callback(null, isAllowedCorsOrigin(origin))
     },
     credentials: true,
   }),
@@ -999,16 +1013,34 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true })
 })
 
+app.get('/api/health/db', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1')
+    res.json({ ok: true, db: true })
+  } catch (e) {
+    console.error('[health/db]', e)
+    res.status(500).json({
+      ok: false,
+      db: false,
+      error: IS_PROD ? 'Falha ao ligar ao banco.' : e?.message || String(e),
+    })
+  }
+})
+
 app.use((_req, res) => {
   res.status(404).json({ error: 'Não encontrado' })
 })
 
-app.use((err, _req, res, _next) => {
-  console.error(err)
+app.use((err, req, res, _next) => {
+  console.error(`[${req.requestId ?? '—'}]`, err)
   if (!IS_PROD && err?.stack) {
     console.error(err.stack)
   }
-  res.status(500).json({ error: 'Erro interno' })
+  const message =
+    err?.message?.includes('CORS') || err?.message?.includes('Origem não permitida')
+      ? 'Origem não permitida.'
+      : 'Erro interno'
+  res.status(500).json({ error: message })
 })
 
 export default app
