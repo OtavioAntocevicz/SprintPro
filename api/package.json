@@ -1,6 +1,7 @@
 {
   "name": "sprintpro-api",
   "private": true,
+  "license": "SEE LICENSE IN ../LICENSE",
   "type": "module",
   "scripts": {
     "start": "node server.mjs",

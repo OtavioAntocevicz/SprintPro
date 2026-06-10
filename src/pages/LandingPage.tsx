@@ -121,13 +121,13 @@ export function LandingPage() {
               to="/login?mode=signup"
               className="rounded-lg bg-violet-600 px-6 py-2.5 font-semibold !text-white hover:bg-violet-500"
             >
-              Criar conta grátis
+              Criar conta
             </Link>
             <Link
               to="/login?mode=login"
               className="rounded-lg border border-slate-300 bg-white px-6 py-2.5 font-semibold text-slate-900 hover:bg-slate-50"
             >
-              Criar conta
+              Entrar
             </Link>
           </div>
         </div>

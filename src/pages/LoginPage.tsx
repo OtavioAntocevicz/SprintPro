@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { loginOwner, registerOwner } from '../services/auth'
@@ -7,9 +7,8 @@ type AuthMode = 'login' | 'signup'
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const initialMode: AuthMode = searchParams.get('mode') === 'signup' ? 'signup' : 'login'
-  const [mode, setMode] = useState<AuthMode>(initialMode)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const mode: AuthMode = searchParams.get('mode') === 'signup' ? 'signup' : 'login'
   const [fullName, setFullName] = useState('')
   const [organizationName, setOrganizationName] = useState('')
   const [email, setEmail] = useState('')
@@ -19,6 +18,15 @@ export function LoginPage() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const submitLock = useRef(false)
+
+  useEffect(() => {
+    setError('')
+    setMessage('')
+  }, [mode])
+
+  function switchMode(nextMode: AuthMode) {
+    setSearchParams({ mode: nextMode }, { replace: true })
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -70,14 +78,14 @@ export function LoginPage() {
         <div className="mb-4 inline-flex rounded-lg bg-slate-100 p-1">
           <button
             type="button"
-            onClick={() => setMode('login')}
+            onClick={() => switchMode('login')}
             className={`rounded-md px-3 py-1.5 text-sm ${mode === 'login' ? 'bg-white text-slate-900' : 'text-slate-600'}`}
           >
             Entrar
           </button>
           <button
             type="button"
-            onClick={() => setMode('signup')}
+            onClick={() => switchMode('signup')}
             className={`rounded-md px-3 py-1.5 text-sm ${mode === 'signup' ? 'bg-white text-slate-900' : 'text-slate-600'}`}
           >
             Criar conta
@@ -137,7 +145,7 @@ export function LoginPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
-          placeholder="Min. 6 caracteres"
+          placeholder={mode === 'signup' ? 'Mín. 8 caracteres com letras e números' : 'Sua senha'}
         />
         {mode === 'login' && (
           <div className="mt-2 text-right">

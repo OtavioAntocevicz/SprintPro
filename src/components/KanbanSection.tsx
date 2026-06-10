@@ -67,19 +67,19 @@ function TaskCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`cursor-grab touch-manipulation rounded-xl border border-slate-200 bg-white p-3 shadow-sm active:cursor-grabbing ${
-        isDragging ? 'opacity-40 ring-2 ring-violet-300' : 'hover:border-slate-300'
+      className={`cursor-grab touch-manipulation rounded-xl border border-slate-200 bg-white p-3 shadow-sm active:cursor-grabbing dark:border-slate-600 dark:bg-slate-800 ${
+        isDragging ? 'opacity-40 ring-2 ring-violet-300' : 'hover:border-slate-300 dark:hover:border-slate-500'
       }`}
     >
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           {task.label && (
-            <span className="rounded bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700">
+            <span className="rounded bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-950 dark:text-violet-300">
               {task.label}
             </span>
           )}
           {task.priority && (
-            <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+            <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-700 dark:text-slate-300">
               {taskPriorityLabel(task.priority)}
             </span>
           )}
@@ -103,14 +103,14 @@ function TaskCard({
               onPointerDown={(e) => e.stopPropagation()}
               className="relative"
             >
-              <summary className="cursor-pointer list-none rounded px-1 text-base leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-700">
+              <summary className="cursor-pointer list-none rounded px-1 text-base leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200">
                 ⋯
               </summary>
-              <div className="absolute right-0 z-20 mt-1 min-w-36 rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+              <div className="absolute right-0 z-20 mt-1 min-w-36 rounded-md border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-800">
                 <button
                   type="button"
                   onClick={() => onDeleteTask(task)}
-                  className="w-full px-3 py-1.5 text-left text-xs text-red-600 hover:bg-red-50"
+                  className="w-full px-3 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
                 >
                   Excluir tarefa
                 </button>
@@ -119,9 +119,9 @@ function TaskCard({
           )}
         </div>
       </div>
-      <h3 className="font-medium text-slate-900">{task.title}</h3>
-      <p className="mt-1 line-clamp-3 text-sm text-slate-600">{task.description}</p>
-      <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+      <h3 className="font-medium text-slate-900 dark:text-slate-100">{task.title}</h3>
+      <p className="mt-1 line-clamp-3 text-sm text-slate-600 dark:text-slate-400">{task.description}</p>
+      <div className="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
         <span>{task.assigneeName ?? 'Sem responsável'}</span>
         <span>{task.dueDate ? new Date(task.dueDate).toLocaleDateString('pt-BR') : 'Sem prazo'}</span>
       </div>
@@ -131,9 +131,9 @@ function TaskCard({
 
 function taskCardStatic(task: Task) {
   return (
-    <article className="cursor-grabbing rounded-xl border border-violet-200 bg-white p-3 shadow-lg ring-2 ring-violet-400">
-      <h3 className="font-medium text-slate-900">{task.title}</h3>
-      <p className="mt-1 line-clamp-2 text-sm text-slate-600">{task.description}</p>
+    <article className="cursor-grabbing rounded-xl border border-violet-200 bg-white p-3 shadow-lg ring-2 ring-violet-400 dark:border-violet-700 dark:bg-slate-800">
+      <h3 className="font-medium text-slate-900 dark:text-slate-100">{task.title}</h3>
+      <p className="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">{task.description}</p>
     </article>
   )
 }
@@ -164,12 +164,12 @@ function Column({
       ref={setNodeRef}
       className={`flex min-h-[min(50vh,480px)] flex-col rounded-2xl border-2 border-dashed p-3 transition-colors ${
         isOver
-          ? 'border-violet-500 bg-violet-50/80'
-          : 'border-slate-200/80 bg-[#eef1f7]'
+          ? 'border-violet-500 bg-violet-50/80 dark:bg-violet-950/50'
+          : 'border-slate-200/80 bg-[#eef1f7] dark:border-slate-600 dark:bg-slate-800/50'
       } `}
     >
-      <h2 className="mb-3 flex-shrink-0 text-lg font-semibold text-slate-900">
-        {title} <span className="text-slate-400">({list.length})</span>
+      <h2 className="mb-3 flex-shrink-0 text-lg font-semibold text-slate-900 dark:text-slate-100">
+        {title} <span className="text-slate-400 dark:text-slate-500">({list.length})</span>
       </h2>
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
         {list.map((task) => (
@@ -273,7 +273,7 @@ export function KanbanSection({ tasks, allTasks, onLocalPatch, onLocalRemove, on
       onDragEnd={onDragEnd}
     >
       {feedback && (
-        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{feedback}</p>
+        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">{feedback}</p>
       )}
       <div className="grid gap-4 xl:grid-cols-3">
         {ORDER.map((col) => (

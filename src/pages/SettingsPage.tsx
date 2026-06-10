@@ -127,36 +127,36 @@ export function SettingsPage() {
     <Layout searchPlaceholder="Configurações">
       <section className="mb-6">
         <h1 className="text-4xl font-semibold">Configurações</h1>
-        <p className="text-slate-500">Gerencie perfil, organização, equipe e segurança da conta.</p>
+        <p className="text-slate-500 dark:text-slate-400">Gerencie perfil, organização, equipe e segurança da conta.</p>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
           <h2 className="text-lg font-semibold">Perfil</h2>
           <form onSubmit={onSaveProfile} className="mt-3 space-y-3">
             <div>
-              <label className="text-sm text-slate-600">Nome completo</label>
+              <label className="text-sm text-slate-600 dark:text-slate-400">Nome completo</label>
               <input
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                 placeholder={appUser?.fullName ?? ''}
               />
             </div>
             <div>
-              <label className="text-sm text-slate-600">Email</label>
+              <label className="text-sm text-slate-600 dark:text-slate-400">Email</label>
               <input
                 value={appUser?.email ?? ''}
                 readOnly
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
               />
             </div>
             <div>
-              <label className="text-sm text-slate-600">Função</label>
+              <label className="text-sm text-slate-600 dark:text-slate-400">Função</label>
               <input
                 value={userRoleLabel(appUser?.role)}
                 readOnly
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
               />
             </div>
             <button className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white">
@@ -165,33 +165,33 @@ export function SettingsPage() {
           </form>
         </article>
 
-        <article className="rounded-2xl border border-slate-200 bg-white p-5">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
           <h2 className="text-lg font-semibold">Organização</h2>
           <form onSubmit={onSaveOrg} className="mt-3 space-y-3">
             <div>
-              <label className="text-sm text-slate-600">Nome da empresa</label>
+              <label className="text-sm text-slate-600 dark:text-slate-400">Nome da empresa</label>
               <input
                 value={orgName}
                 onChange={(e) => setOrgName(e.target.value)}
                 disabled={appUser?.role !== 'owner'}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-50 disabled:text-slate-400"
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 disabled:bg-slate-50 disabled:text-slate-400 dark:disabled:bg-slate-900 dark:disabled:text-slate-500"
                 placeholder={appUser?.organizationName ?? ''}
               />
             </div>
             <div>
-              <label className="text-sm text-slate-600">Plano</label>
+              <label className="text-sm text-slate-600 dark:text-slate-400">Plano</label>
               <input
                 value="MVP Free"
                 readOnly
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
               />
             </div>
             <div>
-              <label className="text-sm text-slate-600">ID da Organização</label>
+              <label className="text-sm text-slate-600 dark:text-slate-400">ID da Organização</label>
               <input
                 value={appUser?.organizationId ?? ''}
                 readOnly
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
               />
             </div>
             <button
@@ -205,20 +205,20 @@ export function SettingsPage() {
       </section>
 
       <section className="mt-4 grid gap-4 md:grid-cols-2">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
           <h2 className="text-lg font-semibold">Equipe e permissões</h2>
-          <p className="mt-2 text-sm text-slate-500">
-            Atalho: <Link to="/members" className="font-medium text-violet-600 hover:underline">Abrir Membros</Link>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            Atalho: <Link to="/members" className="font-medium text-violet-600 hover:underline dark:text-violet-400">Abrir Membros</Link>
           </p>
-          <ul className="mt-3 space-y-1 text-sm text-slate-700">
+          <ul className="mt-3 space-y-1 text-sm text-slate-700 dark:text-slate-300">
             <li>Total de membros: {members.length}</li>
             <li>Com permissão de favoritar: {membersWithFavoritePermission}</li>
           </ul>
         </article>
 
-        <article className="rounded-2xl border border-slate-200 bg-white p-5">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
           <h2 className="text-lg font-semibold">Segurança</h2>
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
             Último acesso da conta atual: {formatLastSeen(appUser?.lastSeenAt)}
           </p>
           <form onSubmit={onChangePassword} className="mt-3 space-y-2">
@@ -227,23 +227,23 @@ export function SettingsPage() {
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="Senha atual"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
             />
             <input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Nova senha"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
             />
             <input
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirmar nova senha"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
             />
-            <p className="text-xs text-slate-500">Use pelo menos 8 caracteres com letras e números.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Use pelo menos 8 caracteres com letras e números.</p>
             <div className="flex flex-wrap gap-2 pt-1">
               <button className="rounded-lg bg-violet-600 px-3 py-2 text-xs font-medium text-white">
                 Alterar senha
@@ -251,7 +251,7 @@ export function SettingsPage() {
               <button
                 type="button"
                 onClick={() => logout()}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-700"
+                className="rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:text-slate-300"
               >
                 Encerrar sessão
               </button>
@@ -259,7 +259,7 @@ export function SettingsPage() {
                 type="button"
                 disabled={appUser?.role !== 'owner'}
                 onClick={() => void onDeleteMainAccount()}
-                className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600 disabled:opacity-50"
+                className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600 disabled:opacity-50 dark:bg-red-950 dark:text-red-400"
                 title="Exclui empresa, colaboradores e dados da organização"
               >
                 Excluir conta principal
@@ -269,7 +269,7 @@ export function SettingsPage() {
         </article>
       </section>
 
-      {feedback && <p className="mt-4 text-sm text-slate-600">{feedback}</p>}
+      {feedback && <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">{feedback}</p>}
     </Layout>
   )
 }

@@ -78,14 +78,14 @@ export function ReportsPage() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-4xl font-semibold">Relatórios</h1>
-            <p className="text-slate-500">Conclusão por membro e tarefas por responsável.</p>
+            <p className="text-slate-500 dark:text-slate-400">Conclusão por membro e tarefas por responsável.</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500">Período:</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">Período:</span>
             <select
               value={period}
               onChange={(e) => setPeriod(e.target.value as Period)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
             >
               <option value="7d">Últimos 7 dias</option>
               <option value="30d">Últimos 30 dias</option>
@@ -97,26 +97,26 @@ export function ReportsPage() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-4">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5">
-          <p className="text-xs uppercase text-slate-500">Total</p>
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Total</p>
           <p className="mt-2 text-3xl font-bold">{totals.total}</p>
         </article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-5">
-          <p className="text-xs uppercase text-slate-500">A fazer</p>
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">A fazer</p>
           <p className="mt-2 text-3xl font-bold">{totals.todo}</p>
         </article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-5">
-          <p className="text-xs uppercase text-slate-500">Em progresso</p>
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Em progresso</p>
           <p className="mt-2 text-3xl font-bold">{totals.doing}</p>
         </article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-5">
-          <p className="text-xs uppercase text-slate-500">Concluídas</p>
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Concluídas</p>
           <p className="mt-2 text-3xl font-bold">{totals.done}</p>
         </article>
       </section>
 
-      <section className="mt-6 rounded-2xl border border-slate-200 bg-white">
-        <div className="grid grid-cols-4 border-b border-slate-200 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <section className="mt-6 rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+        <div className="grid grid-cols-4 border-b border-slate-200 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
           <p>Membro</p>
           <p>Tarefas atribuídas</p>
           <p>Concluídas</p>
@@ -125,13 +125,13 @@ export function ReportsPage() {
         <div>
           {byMember.map((item) => (
             <article key={item.id} className="grid grid-cols-4 items-center px-5 py-3 text-sm">
-              <p className="font-medium text-slate-900">{item.name}</p>
+              <p className="font-medium text-slate-900 dark:text-slate-100">{item.name}</p>
               <p>{item.total}</p>
-              <p className="text-emerald-600">{item.done}</p>
-              <p className="text-slate-600">{item.open}</p>
+              <p className="text-emerald-600 dark:text-emerald-400">{item.done}</p>
+              <p className="text-slate-600 dark:text-slate-400">{item.open}</p>
             </article>
           ))}
-          {byMember.length === 0 && <p className="px-5 py-6 text-sm text-slate-500">Sem membros para exibir.</p>}
+          {byMember.length === 0 && <p className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Sem membros para exibir.</p>}
         </div>
       </section>
     </Layout>

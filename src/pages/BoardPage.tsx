@@ -30,20 +30,20 @@ export function BoardPage() {
 
   return (
     <Layout searchPlaceholder="Buscar tarefas...">
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h1 className="text-xl font-bold text-slate-900">Board Kanban</h1>
+      <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Board Kanban</h1>
         <form onSubmit={onSubmit} className="mt-4 grid gap-2 md:grid-cols-3">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Título da tarefa"
-            className="rounded-lg border border-slate-300 px-3 py-2"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           />
           <input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Descrição"
-            className="rounded-lg border border-slate-300 px-3 py-2"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           />
           <button className="rounded-lg bg-slate-900 px-4 py-2 text-white">Adicionar</button>
         </form>
