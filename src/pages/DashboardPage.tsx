@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import { useBoards } from '../hooks/useBoards'
 import { useFavoriteTasks } from '../hooks/useFavoriteTasks'
 import { Layout } from '../components/Layout'
 import { useOrgTaskStats } from '../hooks/useOrgTaskStats'
@@ -9,7 +8,6 @@ import { taskPriorityLabel } from '../utils/taskPriorityLabel'
 export function DashboardPage() {
   const appUser = useAuthStore((state) => state.appUser)
   const stats = useOrgTaskStats(appUser?.organizationId)
-  const boards = useBoards(appUser?.organizationId)
   const favorites = useFavoriteTasks(appUser?.organizationId)
   const activeTeam = 1
 
@@ -50,9 +48,7 @@ export function DashboardPage() {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {favorites.map((task) => {
-              const board = boards.find((b) => b.id === task.boardId)
-              return (
+            {favorites.map((task) => (
                 <article key={task.id} className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
                   <div className="mb-3 flex items-center justify-between">
                     <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-300">★ Favorita</span>
@@ -65,18 +61,16 @@ export function DashboardPage() {
                   <h3 className="line-clamp-2 text-lg font-semibold text-slate-900 dark:text-slate-100">{task.title}</h3>
                   <p className="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">{task.description || 'Sem descrição'}</p>
                   <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                    <p>{board?.name ?? 'Quadro'}</p>
                     <p>{task.dueDate ? new Date(task.dueDate).toLocaleDateString('pt-BR') : 'Sem prazo'}</p>
                   </div>
                   <Link
-                    to={`/boards?boardId=${task.boardId}`}
+                    to="/boards"
                     className="mt-3 inline-block text-sm font-medium text-violet-600 hover:underline dark:text-violet-400"
                   >
                     Abrir no Kanban
                   </Link>
                 </article>
-              )
-            })}
+            ))}
           </div>
         )}
       </section>

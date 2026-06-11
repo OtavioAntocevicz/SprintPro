@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { BoardTaskFilters } from '../components/BoardTaskFilters'
 import { KanbanSection } from '../components/KanbanSection'
 import { Layout } from '../components/Layout'
 import { useBoards } from '../hooks/useBoards'
@@ -7,21 +7,16 @@ import { useTasks } from '../hooks/useTasks'
 import { createBoard, createTask, fetchMembers } from '../services/apiData'
 import { useAuthStore } from '../store/authStore'
 import type { AppUser } from '../types'
+import { defaultTaskFilters, filterTasks, type TaskFilters } from '../utils/filterTasks'
+import { taskPhase } from '../utils/taskStatus'
 
 export function BoardsPage() {
   const appUser = useAuthStore((state) => state.appUser)
   const canCreateTask = Boolean(appUser?.organizationId)
   const boards = useBoards(appUser?.organizationId)
-  const [searchParams, setSearchParams] = useSearchParams()
-  const boardIdFromQuery = searchParams.get('boardId')
-  const selectedBoardId = boardIdFromQuery ?? boards[0]?.id
-  const selectedBoard = useMemo(
-    () => boards.find((board) => board.id === selectedBoardId) ?? boards[0],
-    [boards, selectedBoardId],
-  )
-  // Usa o id da URL ou do primeiro quadro, não o objeto: após criar um quadro o
-  // snapshot pode atrasar, mas a URL já traz o boardId e a subscription precisa dele.
-  const taskState = useTasks(appUser?.organizationId, selectedBoardId)
+  const [pendingBoardId, setPendingBoardId] = useState<string>()
+  const boardId = boards[0]?.id ?? pendingBoardId
+  const taskState = useTasks(appUser?.organizationId, boardId)
 
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -33,12 +28,7 @@ export function BoardsPage() {
   const [dueDateInput, setDueDateInput] = useState('')
   const [members, setMembers] = useState<AppUser[]>([])
   const [assigneeId, setAssigneeId] = useState('')
-
-  useEffect(() => {
-    if (!boardIdFromQuery && boards[0]?.id) {
-      setSearchParams({ boardId: boards[0].id })
-    }
-  }, [boardIdFromQuery, boards, setSearchParams])
+  const [taskFilters, setTaskFilters] = useState<TaskFilters>(defaultTaskFilters)
 
   useEffect(() => {
     if (!appUser?.organizationId) return
@@ -56,6 +46,20 @@ export function BoardsPage() {
       cancelled = true
     }
   }, [appUser?.organizationId])
+
+  const filteredTasks = useMemo(
+    () => filterTasks(taskState.all, taskFilters),
+    [taskState.all, taskFilters],
+  )
+
+  const filteredGrouped = useMemo(
+    () => ({
+      todo: filteredTasks.filter((task) => taskPhase(task.status) === 'todo'),
+      doing: filteredTasks.filter((task) => taskPhase(task.status) === 'doing'),
+      done: filteredTasks.filter((task) => taskPhase(task.status) === 'done'),
+    }),
+    [filteredTasks],
+  )
 
   function onDueDateInputChange(value: string) {
     const digits = value.replace(/\D/g, '').slice(0, 8)
@@ -108,11 +112,11 @@ export function BoardsPage() {
 
     try {
       setIsSubmitting(true)
-      let boardId = selectedBoardId
-      if (!boardId) {
+      let activeBoardId = boardId
+      if (!activeBoardId) {
         const created = await createBoard('Quadro principal', appUser.organizationId)
-        boardId = created.id
-        setSearchParams({ boardId })
+        activeBoardId = created.id
+        setPendingBoardId(created.id)
       }
       await createTask({
         title: title.trim(),
@@ -121,7 +125,7 @@ export function BoardsPage() {
         priority,
         dueDate: parsedDueDate || undefined,
         assigneeName: members.find((m) => m.id === assigneeId)?.fullName,
-        boardId,
+        boardId: activeBoardId,
         organizationId: appUser.organizationId,
         assignedTo: assigneeId || null,
       })
@@ -143,10 +147,11 @@ export function BoardsPage() {
   return (
     <Layout searchPlaceholder="Buscar tarefas...">
       <section className="mb-5">
-        <div className="flex items-center justify-between">
-          <h1 className="text-4xl font-semibold">
-            {selectedBoard?.name ?? (selectedBoardId ? 'Quadro' : 'Quadros')}
-          </h1>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-semibold">Quadros</h1>
+            <p className="mt-1 text-slate-500 dark:text-slate-400">Kanban operacional da organização</p>
+          </div>
           <button
             type="button"
             onClick={() => {
@@ -159,34 +164,19 @@ export function BoardsPage() {
             + Nova Tarefa
           </button>
         </div>
-        <p className="text-slate-500 dark:text-slate-400">Kanban operacional da organização</p>
       </section>
 
-      <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-        <div className="mb-3 flex flex-wrap gap-2">
-          {boards.map((board) => (
-            <button
-              type="button"
-              key={board.id}
-              onClick={() => setSearchParams({ boardId: board.id })}
-              className={`rounded-full px-3 py-1 text-sm ${
-                selectedBoard?.id === board.id
-                  ? 'bg-violet-600 text-white'
-                  : 'border border-slate-300 bg-white text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300'
-              }`}
-            >
-              {board.name}
-            </button>
-          ))}
-        </div>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Crie tarefas com <strong>Nova Tarefa</strong> e arraste os cartões entre as colunas para alterar a fase.
-        </p>
-      </section>
+      <BoardTaskFilters
+        filters={taskFilters}
+        members={members}
+        totalCount={taskState.all.length}
+        filteredCount={filteredTasks.length}
+        onChange={setTaskFilters}
+      />
 
       <KanbanSection
-        tasks={{ todo: taskState.todo, doing: taskState.doing, done: taskState.done }}
-        allTasks={taskState.all}
+        tasks={filteredGrouped}
+        allTasks={filteredTasks}
         onLocalPatch={taskState.patchTaskLocal}
         onLocalRemove={taskState.removeTaskLocal}
         onRefetch={taskState.refetch}

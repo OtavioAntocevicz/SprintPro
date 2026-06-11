@@ -13,6 +13,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useState } from 'react'
 import { deleteTask, updateTaskFavorite, updateTaskStatus } from '../services/apiData'
+import { TaskNotesModal } from './TaskNotesModal'
 import { useAuthStore } from '../store/authStore'
 import type { Task, TaskStatus } from '../types'
 import { taskPriorityLabel } from '../utils/taskPriorityLabel'
@@ -33,7 +34,7 @@ const ORDER: { key: keyof typeof COL; title: string; status: TaskStatus }[] = [
 type Props = {
   tasks: { todo: Task[]; doing: Task[]; done: Task[] }
   allTasks: Task[]
-  onLocalPatch: (taskId: string, patch: Partial<Pick<Task, 'status' | 'favorite'>>) => void
+  onLocalPatch: (taskId: string, patch: Partial<Pick<Task, 'status' | 'favorite' | 'notes'>>) => void
   onLocalRemove: (taskId: string) => void
   onRefetch: () => void
 }
@@ -45,6 +46,7 @@ function TaskCard({
   canFavorite,
   canDelete,
   onDeleteTask,
+  onOpenNotes,
 }: {
   task: Task
   dragDisabled?: boolean
@@ -52,7 +54,9 @@ function TaskCard({
   canFavorite: boolean
   canDelete: boolean
   onDeleteTask: (task: Task) => void
+  onOpenNotes: (task: Task) => void
 }) {
+  const hasNotes = Boolean(task.notes?.trim())
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
     disabled: dragDisabled,
@@ -85,6 +89,23 @@ function TaskCard({
           )}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onOpenNotes(task)}
+            title={hasNotes ? 'Ver ou editar anotações' : 'Adicionar anotações'}
+            className={`rounded p-0.5 text-base leading-none ${
+              hasNotes
+                ? 'text-violet-600 dark:text-violet-400'
+                : 'text-slate-300 hover:text-violet-500 dark:hover:text-violet-400'
+            }`}
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+            </svg>
+          </button>
           {canFavorite && (
             <button
               type="button"
@@ -147,6 +168,7 @@ function Column({
   canFavorite,
   isOwner,
   onDeleteTask,
+  onOpenNotes,
 }: {
   colId: string
   title: string
@@ -156,6 +178,7 @@ function Column({
   canFavorite: boolean
   isOwner: boolean
   onDeleteTask: (task: Task) => void
+  onOpenNotes: (task: Task) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: colId, data: { type: 'column', status } })
 
@@ -180,6 +203,7 @@ function Column({
             canFavorite={canFavorite}
             canDelete={isOwner && status === 'done'}
             onDeleteTask={onDeleteTask}
+            onOpenNotes={onOpenNotes}
           />
         ))}
       </div>
@@ -189,6 +213,7 @@ function Column({
 
 export function KanbanSection({ tasks, allTasks, onLocalPatch, onLocalRemove, onRefetch }: Props) {
   const [active, setActive] = useState<Task | null>(null)
+  const [notesTask, setNotesTask] = useState<Task | null>(null)
   const [feedback, setFeedback] = useState('')
   const appUser = useAuthStore((s) => s.appUser)
   const canFavorite = appUser?.role === 'owner' || appUser?.canFavorite === true
@@ -287,10 +312,17 @@ export function KanbanSection({ tasks, allTasks, onLocalPatch, onLocalRemove, on
             canFavorite={canFavorite}
             isOwner={isOwner}
             onDeleteTask={onDeleteTask}
+            onOpenNotes={setNotesTask}
           />
         ))}
       </div>
       <DragOverlay dropAnimation={null}>{active ? taskCardStatic(active) : null}</DragOverlay>
+      <TaskNotesModal
+        task={notesTask}
+        open={notesTask !== null}
+        onClose={() => setNotesTask(null)}
+        onSaved={(taskId, notes) => onLocalPatch(taskId, { notes })}
+      />
     </DndContext>
   )
 }

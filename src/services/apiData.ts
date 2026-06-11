@@ -55,6 +55,10 @@ export async function updateTaskFavorite(taskId: string, favorite: boolean) {
   return apiFetchJson<Task>('PATCH', `/api/tasks/${taskId}`, { favorite })
 }
 
+export async function updateTaskNotes(taskId: string, notes: string) {
+  return apiFetchJson<Task>('PATCH', `/api/tasks/${taskId}`, { notes })
+}
+
 export async function deleteTask(taskId: string) {
   return apiFetchJson<void>('DELETE', `/api/tasks/${taskId}`)
 }

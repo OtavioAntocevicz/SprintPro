@@ -99,6 +99,7 @@ function mapTask(r) {
     dueDate,
     assigneeName: r.assignee_name ?? undefined,
     favorite: Boolean(r.favorite),
+    notes: r.notes ?? '',
     assignedTo: r.assigned_to,
     createdAt: toIso(r.created_at),
   }
@@ -782,8 +783,9 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
     typeof rawStatus === 'string' ? rawStatus.trim().toLowerCase() : undefined
   const hasStatus = typeof normalizedStatus === 'string' && normalizedStatus.length > 0
   const hasFavorite = typeof req.body?.favorite === 'boolean'
+  const hasNotes = typeof req.body?.notes === 'string'
   const statusIsValid = hasStatus && ['todo', 'doing', 'done'].includes(normalizedStatus)
-  if (!hasStatus && !hasFavorite) {
+  if (!hasStatus && !hasFavorite && !hasNotes) {
     return res.status(400).json({ error: 'Nada para atualizar.' })
   }
   if (hasFavorite) {
@@ -802,7 +804,7 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
       return res.status(500).json({ error: 'Erro ao validar permissão de favorito.' })
     }
   }
-  if (hasStatus && !statusIsValid && !hasFavorite) {
+  if (hasStatus && !statusIsValid && !hasFavorite && !hasNotes) {
     return res.status(400).json({ error: 'Status inválido.' })
   }
   try {
@@ -816,6 +818,10 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
     if (hasFavorite) {
       updates.push(`favorite = $${idx++}`)
       values.push(Boolean(req.body.favorite))
+    }
+    if (hasNotes) {
+      updates.push(`notes = $${idx++}`)
+      values.push(String(req.body.notes))
     }
     values.push(taskId)
     values.push(req.user.orgId)

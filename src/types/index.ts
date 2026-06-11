@@ -51,6 +51,7 @@ export interface Task {
   dueDate?: string
   assigneeName?: string
   favorite?: boolean
+  notes?: string
   assignedTo: string | null
   createdAt: string
 }
