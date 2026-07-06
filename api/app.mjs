@@ -99,8 +99,19 @@ function mapTask(r) {
     dueDate,
     assigneeName: r.assignee_name ?? undefined,
     favorite: Boolean(r.favorite),
-    notes: r.notes ?? '',
+    notesCount: Number(r.notes_count ?? 0),
     assignedTo: r.assigned_to,
+    createdAt: toIso(r.created_at),
+  }
+}
+
+function mapTaskNote(r) {
+  return {
+    id: r.id,
+    taskId: r.task_id,
+    content: r.content,
+    authorId: r.author_id ?? null,
+    authorName: r.author_name,
     createdAt: toIso(r.created_at),
   }
 }
@@ -711,7 +722,11 @@ app.get('/api/boards/:boardId/tasks', authRequired, async (req, res) => {
     ])
     if (!b.rowCount) return res.status(404).json({ error: 'Quadro não encontrado.' })
     const { rows } = await pool.query(
-      'SELECT * FROM tasks WHERE board_id = $1 AND organization_id = $2 ORDER BY created_at ASC',
+      `SELECT t.*,
+              (SELECT COUNT(*)::int FROM task_notes tn WHERE tn.task_id = t.id) AS notes_count
+       FROM tasks t
+       WHERE t.board_id = $1 AND t.organization_id = $2
+       ORDER BY t.created_at ASC`,
       [boardId, req.user.orgId],
     )
     return res.json(rows.map(mapTask))
@@ -724,7 +739,13 @@ app.get('/api/boards/:boardId/tasks', authRequired, async (req, res) => {
 app.get('/api/organization/tasks', authRequired, async (req, res) => {
   if (!requireOrgMatch(req, res, req.user.orgId)) return
   try {
-    const { rows } = await pool.query('SELECT * FROM tasks WHERE organization_id = $1', [req.user.orgId])
+    const { rows } = await pool.query(
+      `SELECT t.*,
+              (SELECT COUNT(*)::int FROM task_notes tn WHERE tn.task_id = t.id) AS notes_count
+       FROM tasks t
+       WHERE t.organization_id = $1`,
+      [req.user.orgId],
+    )
     return res.json(rows.map(mapTask))
   } catch (e) {
     console.error(e)
@@ -783,9 +804,8 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
     typeof rawStatus === 'string' ? rawStatus.trim().toLowerCase() : undefined
   const hasStatus = typeof normalizedStatus === 'string' && normalizedStatus.length > 0
   const hasFavorite = typeof req.body?.favorite === 'boolean'
-  const hasNotes = typeof req.body?.notes === 'string'
   const statusIsValid = hasStatus && ['todo', 'doing', 'done'].includes(normalizedStatus)
-  if (!hasStatus && !hasFavorite && !hasNotes) {
+  if (!hasStatus && !hasFavorite) {
     return res.status(400).json({ error: 'Nada para atualizar.' })
   }
   if (hasFavorite) {
@@ -804,7 +824,7 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
       return res.status(500).json({ error: 'Erro ao validar permissão de favorito.' })
     }
   }
-  if (hasStatus && !statusIsValid && !hasFavorite && !hasNotes) {
+  if (hasStatus && !statusIsValid && !hasFavorite) {
     return res.status(400).json({ error: 'Status inválido.' })
   }
   try {
@@ -819,17 +839,14 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
       updates.push(`favorite = $${idx++}`)
       values.push(Boolean(req.body.favorite))
     }
-    if (hasNotes) {
-      updates.push(`notes = $${idx++}`)
-      values.push(String(req.body.notes))
-    }
     values.push(taskId)
     values.push(req.user.orgId)
     const { rows } = await pool.query(
       `UPDATE tasks
        SET ${updates.join(', ')}
        WHERE id = $${idx++} AND organization_id = $${idx}
-       RETURNING *`,
+       RETURNING *,
+         (SELECT COUNT(*)::int FROM task_notes tn WHERE tn.task_id = tasks.id) AS notes_count`,
       values,
     )
     if (!rows[0]) return res.status(404).json({ error: 'Tarefa não encontrada.' })
@@ -837,6 +854,83 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
   } catch (e) {
     console.error(e)
     return res.status(500).json({ error: 'Erro ao atualizar tarefa.' })
+  }
+})
+
+app.get('/api/tasks/:id/notes', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  const taskId = req.params.id
+  try {
+    const taskCheck = await pool.query(
+      'SELECT id FROM tasks WHERE id = $1 AND organization_id = $2',
+      [taskId, req.user.orgId],
+    )
+    if (!taskCheck.rowCount) return res.status(404).json({ error: 'Tarefa não encontrada.' })
+    const { rows } = await pool.query(
+      `SELECT * FROM task_notes
+       WHERE task_id = $1 AND organization_id = $2
+       ORDER BY created_at DESC`,
+      [taskId, req.user.orgId],
+    )
+    return res.json(rows.map(mapTaskNote))
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao listar anotações.' })
+  }
+})
+
+app.post('/api/tasks/:id/notes', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  const taskId = req.params.id
+  const content = String(req.body?.content ?? '').trim()
+  if (!content) return res.status(400).json({ error: 'Conteúdo da anotação é obrigatório.' })
+  try {
+    const taskCheck = await pool.query(
+      'SELECT id FROM tasks WHERE id = $1 AND organization_id = $2',
+      [taskId, req.user.orgId],
+    )
+    if (!taskCheck.rowCount) return res.status(404).json({ error: 'Tarefa não encontrada.' })
+    const userResult = await pool.query(
+      'SELECT full_name FROM users WHERE id = $1 AND organization_id = $2',
+      [req.user.sub, req.user.orgId],
+    )
+    const authorName = userResult.rows[0]?.full_name ?? 'Usuário'
+    const { rows } = await pool.query(
+      `INSERT INTO task_notes (task_id, organization_id, author_id, author_name, content)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [taskId, req.user.orgId, req.user.sub, authorName, content],
+    )
+    return res.status(201).json(mapTaskNote(rows[0]))
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao criar anotação.' })
+  }
+})
+
+app.delete('/api/tasks/:id/notes/:noteId', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  const { id: taskId, noteId } = req.params
+  try {
+    const noteResult = await pool.query(
+      `SELECT tn.id, tn.author_id
+       FROM task_notes tn
+       INNER JOIN tasks t ON t.id = tn.task_id
+       WHERE tn.id = $1 AND tn.task_id = $2 AND tn.organization_id = $3 AND t.organization_id = $3`,
+      [noteId, taskId, req.user.orgId],
+    )
+    if (!noteResult.rowCount) return res.status(404).json({ error: 'Anotação não encontrada.' })
+    const note = noteResult.rows[0]
+    const isAuthor = note.author_id === req.user.sub
+    const isOwner = req.user.role === 'owner'
+    if (!isAuthor && !isOwner) {
+      return res.status(403).json({ error: 'Sem permissão para excluir esta anotação.' })
+    }
+    await pool.query('DELETE FROM task_notes WHERE id = $1', [noteId])
+    return res.status(204).send()
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao excluir anotação.' })
   }
 })
 

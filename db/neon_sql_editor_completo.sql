@@ -113,6 +113,27 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at timestamptz;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS favorite boolean NOT NULL DEFAULT false;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notes text NOT NULL DEFAULT '';
 
+-- Histórico de anotações por tarefa (tópicos com autor e data/hora)
+CREATE TABLE IF NOT EXISTS task_notes (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id           uuid NOT NULL REFERENCES tasks (id) ON DELETE CASCADE,
+  organization_id   uuid NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
+  author_id         text REFERENCES users (id) ON DELETE SET NULL,
+  author_name       text NOT NULL,
+  content           text NOT NULL,
+  created_at        timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_notes_task ON task_notes (task_id);
+CREATE INDEX IF NOT EXISTS idx_task_notes_org ON task_notes (organization_id);
+
+-- Migra o bloco de notas antigo como primeira entrada do histórico (roda uma única vez)
+INSERT INTO task_notes (task_id, organization_id, author_id, author_name, content, created_at)
+SELECT t.id, t.organization_id, NULL, 'Anotação anterior', t.notes, t.created_at
+FROM tasks t
+WHERE btrim(coalesce(t.notes, '')) <> ''
+  AND NOT EXISTS (SELECT 1 FROM task_notes tn WHERE tn.task_id = t.id);
+
 -- Fim. Regista utilizadores e dados só pela aplicação (API), não inserir à mão
 -- salvo testes com os INSERT comentados abaixo.
 --

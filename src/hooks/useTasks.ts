@@ -9,7 +9,7 @@ const POLL_MS = 10000
 export function useTasks(organizationId?: string, boardId?: string) {
   const [tasks, setTasks] = useState<Task[]>([])
 
-  const patchTaskLocal = useCallback((taskId: string, patch: Partial<Pick<Task, 'status' | 'favorite' | 'notes'>>) => {
+  const patchTaskLocal = useCallback((taskId: string, patch: Partial<Pick<Task, 'status' | 'favorite' | 'notesCount'>>) => {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...patch } : t)))
   }, [])
 

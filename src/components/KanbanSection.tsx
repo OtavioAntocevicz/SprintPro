@@ -34,7 +34,7 @@ const ORDER: { key: keyof typeof COL; title: string; status: TaskStatus }[] = [
 type Props = {
   tasks: { todo: Task[]; doing: Task[]; done: Task[] }
   allTasks: Task[]
-  onLocalPatch: (taskId: string, patch: Partial<Pick<Task, 'status' | 'favorite' | 'notes'>>) => void
+  onLocalPatch: (taskId: string, patch: Partial<Pick<Task, 'status' | 'favorite' | 'notesCount'>>) => void
   onLocalRemove: (taskId: string) => void
   onRefetch: () => void
 }
@@ -56,7 +56,7 @@ function TaskCard({
   onDeleteTask: (task: Task) => void
   onOpenNotes: (task: Task) => void
 }) {
-  const hasNotes = Boolean(task.notes?.trim())
+  const hasNotes = (task.notesCount ?? 0) > 0
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
     disabled: dragDisabled,
@@ -94,7 +94,7 @@ function TaskCard({
             onMouseDown={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => onOpenNotes(task)}
-            title={hasNotes ? 'Ver ou editar anotações' : 'Adicionar anotações'}
+            title={hasNotes ? 'Ver anotações' : 'Adicionar anotações'}
             className={`rounded p-0.5 text-base leading-none ${
               hasNotes
                 ? 'text-violet-600 dark:text-violet-400'
@@ -321,7 +321,7 @@ export function KanbanSection({ tasks, allTasks, onLocalPatch, onLocalRemove, on
         task={notesTask}
         open={notesTask !== null}
         onClose={() => setNotesTask(null)}
-        onSaved={(taskId, notes) => onLocalPatch(taskId, { notes })}
+        onNotesCountChange={(taskId, notesCount) => onLocalPatch(taskId, { notesCount })}
       />
     </DndContext>
   )

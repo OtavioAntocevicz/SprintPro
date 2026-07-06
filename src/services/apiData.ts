@@ -1,5 +1,5 @@
 import { apiFetchJson } from '../lib/apiClient'
-import type { AppUser, Board, Invite, Task, TaskStatus, UserRole } from '../types'
+import type { AppUser, Board, Invite, Task, TaskNote, TaskStatus, UserRole } from '../types'
 
 export async function fetchBoards() {
   return apiFetchJson<Board[]>('GET', '/api/boards')
@@ -55,8 +55,16 @@ export async function updateTaskFavorite(taskId: string, favorite: boolean) {
   return apiFetchJson<Task>('PATCH', `/api/tasks/${taskId}`, { favorite })
 }
 
-export async function updateTaskNotes(taskId: string, notes: string) {
-  return apiFetchJson<Task>('PATCH', `/api/tasks/${taskId}`, { notes })
+export async function fetchTaskNotes(taskId: string) {
+  return apiFetchJson<TaskNote[]>('GET', `/api/tasks/${taskId}/notes`)
+}
+
+export async function addTaskNote(taskId: string, content: string) {
+  return apiFetchJson<TaskNote>('POST', `/api/tasks/${taskId}/notes`, { content })
+}
+
+export async function deleteTaskNote(taskId: string, noteId: string) {
+  return apiFetchJson<void>('DELETE', `/api/tasks/${taskId}/notes/${noteId}`)
 }
 
 export async function deleteTask(taskId: string) {

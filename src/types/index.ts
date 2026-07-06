@@ -39,6 +39,15 @@ export interface Board {
   createdAt: string
 }
 
+export interface TaskNote {
+  id: string
+  taskId: string
+  content: string
+  authorId: string | null
+  authorName: string
+  createdAt: string
+}
+
 export interface Task {
   id: string
   title: string
@@ -51,7 +60,7 @@ export interface Task {
   dueDate?: string
   assigneeName?: string
   favorite?: boolean
-  notes?: string
+  notesCount?: number
   assignedTo: string | null
   createdAt: string
 }
