@@ -3,15 +3,19 @@ import { Link } from 'react-router-dom'
 import { Layout } from '../components/Layout'
 import {
   changePassword,
+  createCategory,
+  deleteCategory,
   deleteMainAccount,
+  fetchCategories,
   fetchMembers,
+  updateCategory,
   updateOrganization,
   updateProfile,
 } from '../services/apiData'
 import { logout } from '../services/auth'
 import { useAuthStore } from '../store/authStore'
 import { userRoleLabel } from '../utils/userRoleLabel'
-import type { AppUser } from '../types'
+import type { AppUser, TaskCategory } from '../types'
 
 function formatLastSeen(lastSeenAt?: string) {
   if (!lastSeenAt) return 'Sem atividade registrada'
@@ -22,9 +26,15 @@ function formatLastSeen(lastSeenAt?: string) {
 
 export function SettingsPage() {
   const appUser = useAuthStore((s) => s.appUser)
+  const isOwner = appUser?.role === 'owner'
   const [fullName, setFullName] = useState('')
   const [orgName, setOrgName] = useState('')
   const [members, setMembers] = useState<AppUser[]>([])
+  const [categories, setCategories] = useState<TaskCategory[]>([])
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+  const [editingCategoryName, setEditingCategoryName] = useState('')
+  const [categoryBusy, setCategoryBusy] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -35,8 +45,11 @@ export function SettingsPage() {
     let cancelled = false
     async function load() {
       try {
-        const data = await fetchMembers()
-        if (!cancelled) setMembers(data)
+        const [membersData, categoriesData] = await Promise.all([fetchMembers(), fetchCategories()])
+        if (!cancelled) {
+          setMembers(membersData)
+          setCategories(categoriesData)
+        }
       } catch (e) {
         console.error(e)
       }
@@ -88,6 +101,68 @@ export function SettingsPage() {
     }
   }
 
+  async function onAddCategory(event: FormEvent) {
+    event.preventDefault()
+    if (!isOwner) return
+    const name = newCategoryName.trim()
+    if (!name) return
+    setCategoryBusy(true)
+    try {
+      const created = await createCategory(name)
+      setCategories((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')))
+      setNewCategoryName('')
+      setFeedback('Categoria adicionada.')
+    } catch (e) {
+      setFeedback(e instanceof Error ? e.message : 'Falha ao criar categoria.')
+    } finally {
+      setCategoryBusy(false)
+    }
+  }
+
+  async function onSaveCategoryEdit(categoryId: string) {
+    if (!isOwner) return
+    const name = editingCategoryName.trim()
+    if (!name) return
+    setCategoryBusy(true)
+    try {
+      const updated = await updateCategory(categoryId, name)
+      setCategories((prev) =>
+        prev
+          .map((c) => (c.id === categoryId ? updated : c))
+          .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+      )
+      setEditingCategoryId(null)
+      setEditingCategoryName('')
+      setFeedback('Categoria atualizada.')
+    } catch (e) {
+      setFeedback(e instanceof Error ? e.message : 'Falha ao atualizar categoria.')
+    } finally {
+      setCategoryBusy(false)
+    }
+  }
+
+  async function onDeleteCategory(category: TaskCategory) {
+    if (!isOwner) return
+    const ok = window.confirm(
+      `Excluir a categoria "${category.name}"? As tarefas que já usam esse nome mantêm o rótulo.`,
+    )
+    if (!ok) return
+    setCategoryBusy(true)
+    try {
+      await deleteCategory(category.id)
+      setCategories((prev) => prev.filter((c) => c.id !== category.id))
+      if (editingCategoryId === category.id) {
+        setEditingCategoryId(null)
+        setEditingCategoryName('')
+      }
+      setFeedback('Categoria excluída.')
+    } catch (e) {
+      setFeedback(e instanceof Error ? e.message : 'Falha ao excluir categoria.')
+    } finally {
+      setCategoryBusy(false)
+    }
+  }
+
   async function onChangePassword(event: FormEvent) {
     event.preventDefault()
     if (!/^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(newPassword)) {
@@ -110,7 +185,7 @@ export function SettingsPage() {
   }
 
   async function onDeleteMainAccount() {
-    if (appUser?.role !== 'owner') return
+    if (!isOwner) return
     const ok = window.confirm(
       'Esta ação exclui a organização e todos os colaboradores/tarefas. Deseja continuar?',
     )
@@ -173,7 +248,7 @@ export function SettingsPage() {
               <input
                 value={orgName}
                 onChange={(e) => setOrgName(e.target.value)}
-                disabled={appUser?.role !== 'owner'}
+                disabled={!isOwner}
                 className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 disabled:bg-slate-50 disabled:text-slate-400 dark:disabled:bg-slate-900 dark:disabled:text-slate-500"
                 placeholder={appUser?.organizationName ?? ''}
               />
@@ -195,12 +270,108 @@ export function SettingsPage() {
               />
             </div>
             <button
-              disabled={appUser?.role !== 'owner'}
+              disabled={!isOwner}
               className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
               Salvar organização
             </button>
           </form>
+        </article>
+      </section>
+
+      <section className="mt-4">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+          <h2 className="text-lg font-semibold">Categorias</h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Pré-defina lojas ou áreas (ex.: Toyama, Aquabrazil) para agilizar a criação e o filtro de tarefas.
+          </p>
+
+          {isOwner && (
+            <form onSubmit={onAddCategory} className="mt-3 flex flex-wrap gap-2">
+              <input
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="Nome da categoria"
+                className="min-w-[12rem] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              />
+              <button
+                type="submit"
+                disabled={categoryBusy || !newCategoryName.trim()}
+                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                Adicionar
+              </button>
+            </form>
+          )}
+
+          {categories.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+              Nenhuma categoria cadastrada. Cadastre lojas ou áreas para agilizar a criação de tarefas.
+            </p>
+          ) : (
+            <ul className="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
+              {categories.map((category) => (
+                <li key={category.id} className="flex flex-wrap items-center gap-2 py-3">
+                  {editingCategoryId === category.id ? (
+                    <>
+                      <input
+                        value={editingCategoryName}
+                        onChange={(e) => setEditingCategoryName(e.target.value)}
+                        className="min-w-[10rem] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                      />
+                      <button
+                        type="button"
+                        disabled={categoryBusy || !editingCategoryName.trim()}
+                        onClick={() => void onSaveCategoryEdit(category.id)}
+                        className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                      >
+                        Salvar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingCategoryId(null)
+                          setEditingCategoryName('')
+                        }}
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-300"
+                      >
+                        Cancelar
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-sm font-medium text-slate-800 dark:text-slate-200">
+                        {category.name}
+                      </span>
+                      {isOwner && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={categoryBusy}
+                            onClick={() => {
+                              setEditingCategoryId(category.id)
+                              setEditingCategoryName(category.name)
+                            }}
+                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-300"
+                          >
+                            Renomear
+                          </button>
+                          <button
+                            type="button"
+                            disabled={categoryBusy}
+                            onClick={() => void onDeleteCategory(category)}
+                            className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 dark:bg-red-950 dark:text-red-400"
+                          >
+                            Excluir
+                          </button>
+                        </>
+                      )}
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </article>
       </section>
 
@@ -257,7 +428,7 @@ export function SettingsPage() {
               </button>
               <button
                 type="button"
-                disabled={appUser?.role !== 'owner'}
+                disabled={!isOwner}
                 onClick={() => void onDeleteMainAccount()}
                 className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600 disabled:opacity-50 dark:bg-red-950 dark:text-red-400"
                 title="Exclui empresa, colaboradores e dados da organização"

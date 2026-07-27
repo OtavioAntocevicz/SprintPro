@@ -7,6 +7,7 @@ export type TaskPriorityFilter = 'all' | 'low' | 'medium' | 'high'
 export type TaskFilters = {
   query: string
   assigneeId: string
+  label: string
   sort: TaskSortOption
   due: TaskDueFilter
   priority: TaskPriorityFilter
@@ -15,6 +16,7 @@ export type TaskFilters = {
 export const defaultTaskFilters: TaskFilters = {
   query: '',
   assigneeId: '',
+  label: '',
   sort: 'default',
   due: 'all',
   priority: 'all',
@@ -91,6 +93,7 @@ export function filterTasks(tasks: Task[], filters: TaskFilters) {
     } else if (filters.assigneeId && task.assignedTo !== filters.assigneeId) {
       return false
     }
+    if (filters.label && (task.label ?? '') !== filters.label) return false
     if (filters.priority !== 'all' && task.priority !== filters.priority) return false
     if (!matchesDueFilter(task, filters.due)) return false
     return true
@@ -103,6 +106,7 @@ export function hasActiveFilters(filters: TaskFilters) {
   return (
     filters.query.trim() !== '' ||
     filters.assigneeId !== '' ||
+    filters.label !== '' ||
     filters.sort !== 'default' ||
     filters.due !== 'all' ||
     filters.priority !== 'all'

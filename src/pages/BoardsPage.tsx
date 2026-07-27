@@ -4,11 +4,13 @@ import { KanbanSection } from '../components/KanbanSection'
 import { Layout } from '../components/Layout'
 import { useBoards } from '../hooks/useBoards'
 import { useTasks } from '../hooks/useTasks'
-import { createBoard, createTask, fetchMembers } from '../services/apiData'
+import { createBoard, createTask, fetchCategories, fetchMembers } from '../services/apiData'
 import { useAuthStore } from '../store/authStore'
-import type { AppUser } from '../types'
+import type { AppUser, TaskCategory } from '../types'
 import { defaultTaskFilters, filterTasks, type TaskFilters } from '../utils/filterTasks'
 import { taskPhase } from '../utils/taskStatus'
+
+const OTHER_CATEGORY = '__other__'
 
 export function BoardsPage() {
   const appUser = useAuthStore((state) => state.appUser)
@@ -23,29 +25,49 @@ export function BoardsPage() {
   const [submitError, setSubmitError] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [label, setLabel] = useState('Desenvolvimento')
+  const [categorySelect, setCategorySelect] = useState(OTHER_CATEGORY)
+  const [customLabel, setCustomLabel] = useState('')
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium')
   const [dueDateInput, setDueDateInput] = useState('')
   const [members, setMembers] = useState<AppUser[]>([])
+  const [categories, setCategories] = useState<TaskCategory[]>([])
   const [assigneeId, setAssigneeId] = useState('')
   const [taskFilters, setTaskFilters] = useState<TaskFilters>(defaultTaskFilters)
 
   useEffect(() => {
     if (!appUser?.organizationId) return
     let cancelled = false
-    async function loadMembers() {
+    async function load() {
       try {
-        const data = await fetchMembers()
-        if (!cancelled) setMembers(data)
+        const [membersData, categoriesData] = await Promise.all([fetchMembers(), fetchCategories()])
+        if (!cancelled) {
+          setMembers(membersData)
+          setCategories(categoriesData)
+          setCategorySelect(categoriesData[0]?.name ?? OTHER_CATEGORY)
+        }
       } catch (e) {
         console.error(e)
       }
     }
-    void loadMembers()
+    void load()
     return () => {
       cancelled = true
     }
   }, [appUser?.organizationId])
+
+  const labelOptions = useMemo(() => {
+    const names = new Set<string>()
+    for (const category of categories) {
+      if (category.name.trim()) names.add(category.name.trim())
+    }
+    for (const task of taskState.all) {
+      const label = task.label?.trim()
+      if (label) names.add(label)
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [categories, taskState.all])
+
+  const showCustomLabel = categorySelect === OTHER_CATEGORY
 
   const filteredTasks = useMemo(
     () => filterTasks(taskState.all, taskFilters),
@@ -60,6 +82,11 @@ export function BoardsPage() {
     }),
     [filteredTasks],
   )
+
+  function resetCategoryFields() {
+    setCategorySelect(categories[0]?.name ?? OTHER_CATEGORY)
+    setCustomLabel('')
+  }
 
   function onDueDateInputChange(value: string) {
     const digits = value.replace(/\D/g, '').slice(0, 8)
@@ -104,6 +131,17 @@ export function BoardsPage() {
       return
     }
 
+    const resolvedLabel =
+      categorySelect === OTHER_CATEGORY ? customLabel.trim() : categorySelect.trim()
+    if (!resolvedLabel) {
+      setSubmitError(
+        categorySelect === OTHER_CATEGORY
+          ? 'Informe a categoria em Outros.'
+          : 'Selecione uma categoria.',
+      )
+      return
+    }
+
     const parsedDueDate = dueDateInput ? parseDateFromPtBr(dueDateInput) : null
     if (dueDateInput && !parsedDueDate) {
       setSubmitError('Data inválida. Use o formato dd/mm/aaaa.')
@@ -121,7 +159,7 @@ export function BoardsPage() {
       await createTask({
         title: title.trim(),
         description: description.trim(),
-        label: label.trim(),
+        label: resolvedLabel,
         priority,
         dueDate: parsedDueDate || undefined,
         assigneeName: members.find((m) => m.id === assigneeId)?.fullName,
@@ -132,7 +170,7 @@ export function BoardsPage() {
       await taskState.refetch()
       setTitle('')
       setDescription('')
-      setLabel('Desenvolvimento')
+      resetCategoryFields()
       setPriority('medium')
       setDueDateInput('')
       setAssigneeId('')
@@ -156,6 +194,7 @@ export function BoardsPage() {
             type="button"
             onClick={() => {
               setSubmitError('')
+              resetCategoryFields()
               setShowTaskModal(true)
             }}
             disabled={!canCreateTask}
@@ -169,6 +208,7 @@ export function BoardsPage() {
       <BoardTaskFilters
         filters={taskFilters}
         members={members}
+        labelOptions={labelOptions}
         totalCount={taskState.all.length}
         filteredCount={filteredTasks.length}
         onChange={setTaskFilters}
@@ -225,12 +265,26 @@ export function BoardsPage() {
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Categoria</label>
-                <input
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  placeholder="Desenvolvimento"
+                <select
+                  value={categorySelect}
+                  onChange={(e) => setCategorySelect(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                />
+                >
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.name}>
+                      {category.name}
+                    </option>
+                  ))}
+                  <option value={OTHER_CATEGORY}>Outros</option>
+                </select>
+                {showCustomLabel && (
+                  <input
+                    value={customLabel}
+                    onChange={(e) => setCustomLabel(e.target.value)}
+                    placeholder="Digite a categoria"
+                    className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                )}
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Prioridade</label>

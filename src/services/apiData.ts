@@ -1,5 +1,5 @@
 import { apiFetchJson } from '../lib/apiClient'
-import type { AppUser, Board, Invite, Task, TaskNote, TaskStatus, UserRole } from '../types'
+import type { AppUser, Board, Invite, Task, TaskCategory, TaskNote, TaskStatus, UserRole } from '../types'
 
 export async function fetchBoards() {
   return apiFetchJson<Board[]>('GET', '/api/boards')
@@ -73,6 +73,22 @@ export async function deleteTask(taskId: string) {
 
 export async function fetchMembers() {
   return apiFetchJson<AppUser[]>('GET', '/api/organization/members')
+}
+
+export async function fetchCategories() {
+  return apiFetchJson<TaskCategory[]>('GET', '/api/organization/categories')
+}
+
+export async function createCategory(name: string) {
+  return apiFetchJson<TaskCategory>('POST', '/api/organization/categories', { name })
+}
+
+export async function updateCategory(categoryId: string, name: string) {
+  return apiFetchJson<TaskCategory>('PATCH', `/api/organization/categories/${categoryId}`, { name })
+}
+
+export async function deleteCategory(categoryId: string) {
+  return apiFetchJson<void>('DELETE', `/api/organization/categories/${categoryId}`)
 }
 
 export async function fetchInvites() {

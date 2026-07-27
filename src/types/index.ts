@@ -48,6 +48,13 @@ export interface TaskNote {
   createdAt: string
 }
 
+export interface TaskCategory {
+  id: string
+  organizationId: string
+  name: string
+  createdAt: string
+}
+
 export interface Task {
   id: string
   title: string

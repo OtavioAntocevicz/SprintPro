@@ -134,6 +134,17 @@ FROM tasks t
 WHERE btrim(coalesce(t.notes, '')) <> ''
   AND NOT EXISTS (SELECT 1 FROM task_notes tn WHERE tn.task_id = t.id);
 
+-- Categorias pré-definidas por organização (select na criação de tarefas)
+CREATE TABLE IF NOT EXISTS task_categories (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id   uuid NOT NULL REFERENCES organizations (id) ON DELETE CASCADE,
+  name              text NOT NULL,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (organization_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_categories_org ON task_categories (organization_id);
+
 -- Fim. Regista utilizadores e dados só pela aplicação (API), não inserir à mão
 -- salvo testes com os INSERT comentados abaixo.
 --

@@ -116,6 +116,15 @@ function mapTaskNote(r) {
   }
 }
 
+function mapCategory(r) {
+  return {
+    id: r.id,
+    organizationId: r.organization_id,
+    name: r.name,
+    createdAt: toIso(r.created_at),
+  }
+}
+
 function mapInvite(r) {
   return {
     id: r.id,
@@ -971,6 +980,90 @@ app.get('/api/organization/members', authRequired, async (req, res) => {
   } catch (e) {
     console.error(e)
     return res.status(500).json({ error: 'Erro ao listar membros.' })
+  }
+})
+
+app.get('/api/organization/categories', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM task_categories WHERE organization_id = $1 ORDER BY name ASC',
+      [req.user.orgId],
+    )
+    return res.json(rows.map(mapCategory))
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao listar categorias.' })
+  }
+})
+
+app.post('/api/organization/categories', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  if (req.user.role !== 'owner') {
+    return res.status(403).json({ error: 'Apenas o gestor pode criar categorias.' })
+  }
+  const name = String(req.body?.name ?? '').trim()
+  if (!name) return res.status(400).json({ error: 'Nome da categoria é obrigatório.' })
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO task_categories (organization_id, name)
+       VALUES ($1, $2)
+       RETURNING *`,
+      [req.user.orgId, name],
+    )
+    return res.status(201).json(mapCategory(rows[0]))
+  } catch (e) {
+    if (e && e.code === '23505') {
+      return res.status(409).json({ error: 'Já existe uma categoria com esse nome.' })
+    }
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao criar categoria.' })
+  }
+})
+
+app.patch('/api/organization/categories/:id', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  if (req.user.role !== 'owner') {
+    return res.status(403).json({ error: 'Apenas o gestor pode editar categorias.' })
+  }
+  const categoryId = req.params.id
+  const name = String(req.body?.name ?? '').trim()
+  if (!name) return res.status(400).json({ error: 'Nome da categoria é obrigatório.' })
+  try {
+    const { rows } = await pool.query(
+      `UPDATE task_categories
+       SET name = $1
+       WHERE id = $2 AND organization_id = $3
+       RETURNING *`,
+      [name, categoryId, req.user.orgId],
+    )
+    if (!rows[0]) return res.status(404).json({ error: 'Categoria não encontrada.' })
+    return res.json(mapCategory(rows[0]))
+  } catch (e) {
+    if (e && e.code === '23505') {
+      return res.status(409).json({ error: 'Já existe uma categoria com esse nome.' })
+    }
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao atualizar categoria.' })
+  }
+})
+
+app.delete('/api/organization/categories/:id', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  if (req.user.role !== 'owner') {
+    return res.status(403).json({ error: 'Apenas o gestor pode excluir categorias.' })
+  }
+  const categoryId = req.params.id
+  try {
+    const result = await pool.query(
+      'DELETE FROM task_categories WHERE id = $1 AND organization_id = $2 RETURNING id',
+      [categoryId, req.user.orgId],
+    )
+    if (!result.rowCount) return res.status(404).json({ error: 'Categoria não encontrada.' })
+    return res.status(204).send()
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao excluir categoria.' })
   }
 })
 

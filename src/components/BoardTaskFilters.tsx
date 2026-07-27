@@ -8,6 +8,7 @@ import {
 type Props = {
   filters: TaskFilters
   members: AppUser[]
+  labelOptions: string[]
   totalCount: number
   filteredCount: number
   onChange: (filters: TaskFilters) => void
@@ -16,7 +17,14 @@ type Props = {
 const inputClass =
   'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
 
-export function BoardTaskFilters({ filters, members, totalCount, filteredCount, onChange }: Props) {
+export function BoardTaskFilters({
+  filters,
+  members,
+  labelOptions,
+  totalCount,
+  filteredCount,
+  onChange,
+}: Props) {
   function patch(partial: Partial<TaskFilters>) {
     onChange({ ...filters, ...partial })
   }
@@ -35,6 +43,24 @@ export function BoardTaskFilters({ filters, members, totalCount, filteredCount, 
             placeholder="Nome da tarefa..."
             className={`w-full ${inputClass}`}
           />
+        </div>
+
+        <div className="min-w-[10rem]">
+          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
+            Categoria
+          </label>
+          <select
+            value={filters.label}
+            onChange={(e) => patch({ label: e.target.value })}
+            className={`w-full ${inputClass}`}
+          >
+            <option value="">Todas</option>
+            {labelOptions.map((label) => (
+              <option key={label} value={label}>
+                {label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="min-w-[10rem]">
