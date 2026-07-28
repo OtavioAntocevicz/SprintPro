@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Layout } from '../components/Layout'
+import { useMembersCount } from '../hooks/useMembersCount'
 import { fetchMembers, fetchOrganizationTasks } from '../services/apiData'
 import { useAuthStore } from '../store/authStore'
+import { pollIntervalForMemberCount } from '../utils/pollInterval'
 import type { AppUser, Task } from '../types'
 
 type Period = '7d' | '30d' | '90d' | 'all'
 
 export function ReportsPage() {
   const appUser = useAuthStore((s) => s.appUser)
+  const memberCount = useMembersCount(appUser?.organizationId)
+  const pollMs = pollIntervalForMemberCount(memberCount)
   const [tasks, setTasks] = useState<Task[]>([])
   const [members, setMembers] = useState<AppUser[]>([])
   const [period, setPeriod] = useState<Period>('30d')
@@ -28,12 +32,12 @@ export function ReportsPage() {
       }
     }
     void load()
-    const id = window.setInterval(() => void load(), 10000)
+    const id = window.setInterval(() => void load(), pollMs)
     return () => {
       cancelled = true
       window.clearInterval(id)
     }
-  }, [appUser?.organizationId])
+  }, [appUser?.organizationId, pollMs])
 
   useEffect(() => {
     const id = window.setInterval(() => setNowTs(Date.now()), 1000)

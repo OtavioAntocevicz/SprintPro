@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchOnlineUsers, sendPresenceHeartbeat } from '../services/apiData'
+import { useMembersCount } from './useMembersCount'
+import { presenceIntervalForMemberCount } from '../utils/pollInterval'
 import type { AppUser } from '../types'
-
-const HEARTBEAT_MS = 25000
-const FETCH_MS = 15000
 
 export function useOnlineUsers(organizationId?: string) {
   const [users, setUsers] = useState<AppUser[]>([])
+  const memberCount = useMembersCount(organizationId)
+  const { heartbeatMs, fetchMs } = presenceIntervalForMemberCount(memberCount)
 
   useEffect(() => {
     if (!organizationId) return
@@ -36,9 +37,9 @@ export function useOnlineUsers(organizationId?: string) {
       if (document.visibilityState === 'visible') {
         void heartbeat()
       }
-    }, HEARTBEAT_MS)
+    }, heartbeatMs)
 
-    const onlineId = window.setInterval(() => void loadOnline(), FETCH_MS)
+    const onlineId = window.setInterval(() => void loadOnline(), fetchMs)
     const onFocus = () => {
       void heartbeat()
       void loadOnline()
@@ -53,7 +54,7 @@ export function useOnlineUsers(organizationId?: string) {
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onFocus)
     }
-  }, [organizationId])
+  }, [organizationId, heartbeatMs, fetchMs])
 
   return useMemo(() => users, [users])
 }

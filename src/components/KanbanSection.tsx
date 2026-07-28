@@ -13,9 +13,11 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useState } from 'react'
 import { deleteTask, updateTaskFavorite, updateTaskStatus } from '../services/apiData'
+import { TaskEditModal } from './TaskEditModal'
 import { TaskNotesModal } from './TaskNotesModal'
 import { useAuthStore } from '../store/authStore'
-import type { Task, TaskStatus } from '../types'
+import type { AppUser, Task, TaskCategory, TaskStatus } from '../types'
+import type { TaskLocalPatch } from '../hooks/useTasks'
 import { taskPriorityLabel } from '../utils/taskPriorityLabel'
 import { taskPhase } from '../utils/taskStatus'
 
@@ -34,36 +36,35 @@ const ORDER: { key: keyof typeof COL; title: string; status: TaskStatus }[] = [
 type Props = {
   tasks: { todo: Task[]; doing: Task[]; done: Task[] }
   allTasks: Task[]
-  onLocalPatch: (taskId: string, patch: Partial<Pick<Task, 'status' | 'favorite' | 'notesCount'>>) => void
+  members: AppUser[]
+  categories: TaskCategory[]
+  onLocalPatch: (taskId: string, patch: TaskLocalPatch) => void
   onLocalRemove: (taskId: string) => void
   onRefetch: () => void
 }
 
 function TaskCard({
   task,
-  dragDisabled,
   onToggleFavorite,
   canFavorite,
   canDelete,
   onDeleteTask,
   onOpenNotes,
+  onOpenEdit,
 }: {
   task: Task
-  dragDisabled?: boolean
   onToggleFavorite: (task: Task) => void
   canFavorite: boolean
   canDelete: boolean
   onDeleteTask: (task: Task) => void
   onOpenNotes: (task: Task) => void
+  onOpenEdit: (task: Task) => void
 }) {
   const hasNotes = (task.notesCount ?? 0) > 0
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
-    disabled: dragDisabled,
   })
-  const style = transform
-    ? { transform: CSS.Translate.toString(transform) }
-    : undefined
+  const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined
 
   return (
     <article
@@ -88,14 +89,27 @@ function TaskCard({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => onOpenEdit(task)}
+            title="Editar tarefa"
+            className="rounded p-0.5 text-slate-300 hover:text-violet-500 dark:hover:text-violet-400"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          </button>
           <button
             type="button"
             onMouseDown={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => onOpenNotes(task)}
             title={hasNotes ? 'Ver anotações' : 'Adicionar anotações'}
-            className={`rounded p-0.5 text-base leading-none ${
+            className={`rounded p-0.5 ${
               hasNotes
                 ? 'text-violet-600 dark:text-violet-400'
                 : 'text-slate-300 hover:text-violet-500 dark:hover:text-violet-400'
@@ -140,11 +154,20 @@ function TaskCard({
           )}
         </div>
       </div>
-      <h3 className="font-medium text-slate-900 dark:text-slate-100">{task.title}</h3>
-      <p className="mt-1 line-clamp-3 text-sm text-slate-600 dark:text-slate-400">{task.description}</p>
+      <button
+        type="button"
+        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={() => onOpenNotes(task)}
+        className="w-full text-left"
+        title={hasNotes ? 'Ver anotações' : 'Adicionar anotações'}
+      >
+        <h3 className="font-medium text-slate-900 dark:text-slate-100">{task.title}</h3>
+        <p className="mt-1 line-clamp-3 text-sm text-slate-600 dark:text-slate-400">{task.description}</p>
+      </button>
       <div className="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
         <span>{task.assigneeName ?? 'Sem responsável'}</span>
-        <span>{task.dueDate ? new Date(task.dueDate).toLocaleDateString('pt-BR') : 'Sem prazo'}</span>
+        <span>{task.dueDate ? new Date(`${task.dueDate}T00:00:00`).toLocaleDateString('pt-BR') : 'Sem prazo'}</span>
       </div>
     </article>
   )
@@ -169,6 +192,7 @@ function Column({
   isOwner,
   onDeleteTask,
   onOpenNotes,
+  onOpenEdit,
 }: {
   colId: string
   title: string
@@ -179,6 +203,7 @@ function Column({
   isOwner: boolean
   onDeleteTask: (task: Task) => void
   onOpenNotes: (task: Task) => void
+  onOpenEdit: (task: Task) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: colId, data: { type: 'column', status } })
 
@@ -204,6 +229,7 @@ function Column({
             canDelete={isOwner && status === 'done'}
             onDeleteTask={onDeleteTask}
             onOpenNotes={onOpenNotes}
+            onOpenEdit={onOpenEdit}
           />
         ))}
       </div>
@@ -211,16 +237,23 @@ function Column({
   )
 }
 
-export function KanbanSection({ tasks, allTasks, onLocalPatch, onLocalRemove, onRefetch }: Props) {
+export function KanbanSection({
+  tasks,
+  allTasks,
+  members,
+  categories,
+  onLocalPatch,
+  onLocalRemove,
+  onRefetch,
+}: Props) {
   const [active, setActive] = useState<Task | null>(null)
   const [notesTask, setNotesTask] = useState<Task | null>(null)
+  const [editTask, setEditTask] = useState<Task | null>(null)
   const [feedback, setFeedback] = useState('')
   const appUser = useAuthStore((s) => s.appUser)
   const canFavorite = appUser?.role === 'owner' || appUser?.canFavorite === true
   const isOwner = appUser?.role === 'owner'
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-  )
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   function onDragStart(e: DragStartEvent) {
     const id = String(e.active.id)
@@ -298,7 +331,9 @@ export function KanbanSection({ tasks, allTasks, onLocalPatch, onLocalRemove, on
       onDragEnd={onDragEnd}
     >
       {feedback && (
-        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">{feedback}</p>
+        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+          {feedback}
+        </p>
       )}
       <div className="grid gap-4 xl:grid-cols-3">
         {ORDER.map((col) => (
@@ -313,6 +348,7 @@ export function KanbanSection({ tasks, allTasks, onLocalPatch, onLocalRemove, on
             isOwner={isOwner}
             onDeleteTask={onDeleteTask}
             onOpenNotes={setNotesTask}
+            onOpenEdit={setEditTask}
           />
         ))}
       </div>
@@ -322,6 +358,23 @@ export function KanbanSection({ tasks, allTasks, onLocalPatch, onLocalRemove, on
         open={notesTask !== null}
         onClose={() => setNotesTask(null)}
         onNotesCountChange={(taskId, notesCount) => onLocalPatch(taskId, { notesCount })}
+      />
+      <TaskEditModal
+        task={editTask}
+        open={editTask !== null}
+        members={members}
+        categories={categories}
+        onClose={() => setEditTask(null)}
+        onSaved={(updated) =>
+          onLocalPatch(updated.id, {
+            description: updated.description,
+            label: updated.label,
+            priority: updated.priority,
+            dueDate: updated.dueDate,
+            assigneeName: updated.assigneeName,
+            assignedTo: updated.assignedTo,
+          })
+        }
       />
     </DndContext>
   )

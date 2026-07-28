@@ -778,18 +778,21 @@ app.post('/api/tasks', authRequired, async (req, res) => {
     const label = req.body?.label ? String(req.body.label) : null
     const priority = req.body?.priority || null
     const dueDate = req.body?.dueDate ? String(req.body.dueDate) : null
-    const assigneeName = req.body?.assigneeName ? String(req.body.assigneeName) : null
-    const assignedTo = req.body?.assignedTo ? String(req.body.assignedTo) : null
-
-    if (assignedTo) {
-      const memberCheck = await pool.query(
-        'SELECT id FROM users WHERE id = $1 AND organization_id = $2',
-        [assignedTo, req.user.orgId],
-      )
-      if (!memberCheck.rowCount) {
-        return res.status(400).json({ error: 'Responsável inválido para esta organização.' })
-      }
+    const assignedTo = req.body?.assignedTo ? String(req.body.assignedTo).trim() : ''
+    if (!assignedTo) {
+      return res.status(400).json({ error: 'Responsável é obrigatório.' })
     }
+    const memberCheck = await pool.query(
+      'SELECT id, full_name FROM users WHERE id = $1 AND organization_id = $2',
+      [assignedTo, req.user.orgId],
+    )
+    if (!memberCheck.rowCount) {
+      return res.status(400).json({ error: 'Responsável inválido para esta organização.' })
+    }
+    const assigneeName =
+      (req.body?.assigneeName ? String(req.body.assigneeName).trim() : '') ||
+      memberCheck.rows[0].full_name ||
+      null
     const { rows } = await pool.query(
       `INSERT INTO tasks (
          organization_id, board_id, title, description, status,
@@ -813,8 +816,24 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
     typeof rawStatus === 'string' ? rawStatus.trim().toLowerCase() : undefined
   const hasStatus = typeof normalizedStatus === 'string' && normalizedStatus.length > 0
   const hasFavorite = typeof req.body?.favorite === 'boolean'
+  const hasTitle = typeof req.body?.title === 'string'
+  const hasDescription = typeof req.body?.description === 'string'
+  const hasLabel = typeof req.body?.label === 'string'
+  const hasPriority = typeof req.body?.priority === 'string' || req.body?.priority === null
+  const hasDueDate = typeof req.body?.dueDate === 'string' || req.body?.dueDate === null
+  const hasAssignedTo = typeof req.body?.assignedTo === 'string' || req.body?.assignedTo === null
   const statusIsValid = hasStatus && ['todo', 'doing', 'done'].includes(normalizedStatus)
-  if (!hasStatus && !hasFavorite) {
+
+  if (
+    !hasStatus &&
+    !hasFavorite &&
+    !hasTitle &&
+    !hasDescription &&
+    !hasLabel &&
+    !hasPriority &&
+    !hasDueDate &&
+    !hasAssignedTo
+  ) {
     return res.status(400).json({ error: 'Nada para atualizar.' })
   }
   if (hasFavorite) {
@@ -833,9 +852,35 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
       return res.status(500).json({ error: 'Erro ao validar permissão de favorito.' })
     }
   }
-  if (hasStatus && !statusIsValid && !hasFavorite) {
+  if (hasStatus && !statusIsValid) {
     return res.status(400).json({ error: 'Status inválido.' })
   }
+
+  let nextAssigneeName = null
+  let nextAssignedTo = null
+  if (hasAssignedTo) {
+    nextAssignedTo = req.body.assignedTo ? String(req.body.assignedTo).trim() : null
+    if (!nextAssignedTo) {
+      return res.status(400).json({ error: 'Responsável é obrigatório.' })
+    }
+    try {
+      const memberCheck = await pool.query(
+        'SELECT id, full_name FROM users WHERE id = $1 AND organization_id = $2',
+        [nextAssignedTo, req.user.orgId],
+      )
+      if (!memberCheck.rowCount) {
+        return res.status(400).json({ error: 'Responsável inválido para esta organização.' })
+      }
+      nextAssigneeName =
+        (req.body?.assigneeName ? String(req.body.assigneeName).trim() : '') ||
+        memberCheck.rows[0].full_name ||
+        null
+    } catch (e) {
+      console.error(e)
+      return res.status(500).json({ error: 'Erro ao validar responsável.' })
+    }
+  }
+
   try {
     const updates = []
     const values = []
@@ -847,6 +892,42 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
     if (hasFavorite) {
       updates.push(`favorite = $${idx++}`)
       values.push(Boolean(req.body.favorite))
+    }
+    if (hasTitle) {
+      const title = String(req.body.title).trim()
+      if (!title) return res.status(400).json({ error: 'Título da tarefa é obrigatório.' })
+      updates.push(`title = $${idx++}`)
+      values.push(title)
+    }
+    if (hasDescription) {
+      updates.push(`description = $${idx++}`)
+      values.push(String(req.body.description))
+    }
+    if (hasLabel) {
+      const label = String(req.body.label).trim()
+      updates.push(`label = $${idx++}`)
+      values.push(label || null)
+    }
+    if (hasPriority) {
+      const priority = req.body.priority ? String(req.body.priority) : null
+      if (priority && !['low', 'medium', 'high'].includes(priority)) {
+        return res.status(400).json({ error: 'Prioridade inválida.' })
+      }
+      updates.push(`priority = $${idx++}`)
+      values.push(priority)
+    }
+    if (hasDueDate) {
+      updates.push(`due_date = $${idx++}`)
+      values.push(req.body.dueDate ? String(req.body.dueDate) : null)
+    }
+    if (hasAssignedTo) {
+      updates.push(`assigned_to = $${idx++}`)
+      values.push(nextAssignedTo)
+      updates.push(`assignee_name = $${idx++}`)
+      values.push(nextAssigneeName)
+    }
+    if (!updates.length) {
+      return res.status(400).json({ error: 'Nada para atualizar.' })
     }
     values.push(taskId)
     values.push(req.user.orgId)

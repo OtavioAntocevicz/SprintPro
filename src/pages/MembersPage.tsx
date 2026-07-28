@@ -7,14 +7,16 @@ import {
   fetchMembers,
   updateMemberFavoritePermission,
 } from '../services/apiData'
+import { useMembersCount } from '../hooks/useMembersCount'
 import { useAuthStore } from '../store/authStore'
+import { pollIntervalForMemberCount } from '../utils/pollInterval'
 import { userRoleLabel } from '../utils/userRoleLabel'
 import type { AppUser, Invite } from '../types'
 
-const POLL_MS = 4000
-
 export function MembersPage() {
   const appUser = useAuthStore((state) => state.appUser)
+  const memberCount = useMembersCount(appUser?.organizationId)
+  const pollMs = pollIntervalForMemberCount(memberCount)
   const [members, setMembers] = useState<AppUser[]>([])
   const [invites, setInvites] = useState<Invite[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
@@ -37,12 +39,12 @@ export function MembersPage() {
       }
     }
     void load()
-    const id = window.setInterval(() => void load(), POLL_MS)
+    const id = window.setInterval(() => void load(), pollMs)
     return () => {
       cancelled = true
       window.clearInterval(id)
     }
-  }, [appUser?.organizationId])
+  }, [appUser?.organizationId, pollMs])
 
   useEffect(() => {
     const id = window.setInterval(() => setNowTs(Date.now()), 1000)

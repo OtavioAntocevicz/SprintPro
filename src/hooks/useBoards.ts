@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { fetchBoards } from '../services/apiData'
+import { useMembersCount } from './useMembersCount'
+import { pollIntervalForMemberCount } from '../utils/pollInterval'
 import type { Board } from '../types'
-
-const POLL_MS = 3000
 
 export function useBoards(organizationId?: string) {
   const [boards, setBoards] = useState<Board[]>([])
+  const memberCount = useMembersCount(organizationId)
+  const pollMs = pollIntervalForMemberCount(memberCount)
 
   useEffect(() => {
     if (!organizationId) return
@@ -19,12 +21,12 @@ export function useBoards(organizationId?: string) {
       }
     }
     void load()
-    const id = window.setInterval(() => void load(), POLL_MS)
+    const id = window.setInterval(() => void load(), pollMs)
     return () => {
       cancelled = true
       window.clearInterval(id)
     }
-  }, [organizationId])
+  }, [organizationId, pollMs])
 
   return boards
 }

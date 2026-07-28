@@ -6,8 +6,10 @@ import { useBoards } from '../hooks/useBoards'
 import { useTasks } from '../hooks/useTasks'
 import { createBoard, createTask, fetchCategories, fetchMembers } from '../services/apiData'
 import { useAuthStore } from '../store/authStore'
+import { useHeaderSearchStore } from '../store/headerSearchStore'
 import type { AppUser, TaskCategory } from '../types'
 import { defaultTaskFilters, filterTasks, type TaskFilters } from '../utils/filterTasks'
+import { resolveDefaultAssigneeId, setLastAssigneeId } from '../utils/lastAssignee'
 import { taskPhase } from '../utils/taskStatus'
 
 const OTHER_CATEGORY = '__other__'
@@ -33,6 +35,17 @@ export function BoardsPage() {
   const [categories, setCategories] = useState<TaskCategory[]>([])
   const [assigneeId, setAssigneeId] = useState('')
   const [taskFilters, setTaskFilters] = useState<TaskFilters>(defaultTaskFilters)
+  const headerQuery = useHeaderSearchStore((s) => s.query)
+  const setHeaderQuery = useHeaderSearchStore((s) => s.setQuery)
+
+  useEffect(() => {
+    setTaskFilters((prev) => (prev.query === headerQuery ? prev : { ...prev, query: headerQuery }))
+  }, [headerQuery])
+
+  function onFiltersChange(next: TaskFilters) {
+    setTaskFilters(next)
+    if (next.query !== headerQuery) setHeaderQuery(next.query)
+  }
 
   useEffect(() => {
     if (!appUser?.organizationId) return
@@ -44,6 +57,9 @@ export function BoardsPage() {
           setMembers(membersData)
           setCategories(categoriesData)
           setCategorySelect(categoriesData[0]?.name ?? OTHER_CATEGORY)
+          setAssigneeId(
+            resolveDefaultAssigneeId(membersData, appUser?.organizationId, appUser?.id),
+          )
         }
       } catch (e) {
         console.error(e)
@@ -86,6 +102,10 @@ export function BoardsPage() {
   function resetCategoryFields() {
     setCategorySelect(categories[0]?.name ?? OTHER_CATEGORY)
     setCustomLabel('')
+  }
+
+  function resetAssigneeField() {
+    setAssigneeId(resolveDefaultAssigneeId(members, appUser?.organizationId, appUser?.id))
   }
 
   function onDueDateInputChange(value: string) {
@@ -142,6 +162,11 @@ export function BoardsPage() {
       return
     }
 
+    if (!assigneeId || !members.some((m) => m.id === assigneeId)) {
+      setSubmitError('Selecione um responsável para a tarefa.')
+      return
+    }
+
     const parsedDueDate = dueDateInput ? parseDateFromPtBr(dueDateInput) : null
     if (dueDateInput && !parsedDueDate) {
       setSubmitError('Data inválida. Use o formato dd/mm/aaaa.')
@@ -156,24 +181,26 @@ export function BoardsPage() {
         activeBoardId = created.id
         setPendingBoardId(created.id)
       }
+      const assignee = members.find((m) => m.id === assigneeId)
       await createTask({
         title: title.trim(),
         description: description.trim(),
         label: resolvedLabel,
         priority,
         dueDate: parsedDueDate || undefined,
-        assigneeName: members.find((m) => m.id === assigneeId)?.fullName,
+        assigneeName: assignee?.fullName,
         boardId: activeBoardId,
         organizationId: appUser.organizationId,
-        assignedTo: assigneeId || null,
+        assignedTo: assigneeId,
       })
+      setLastAssigneeId(appUser.organizationId, assigneeId)
       await taskState.refetch()
       setTitle('')
       setDescription('')
       resetCategoryFields()
       setPriority('medium')
       setDueDateInput('')
-      setAssigneeId('')
+      resetAssigneeField()
       setShowTaskModal(false)
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Falha ao criar tarefa.')
@@ -195,6 +222,7 @@ export function BoardsPage() {
             onClick={() => {
               setSubmitError('')
               resetCategoryFields()
+              resetAssigneeField()
               setShowTaskModal(true)
             }}
             disabled={!canCreateTask}
@@ -211,12 +239,14 @@ export function BoardsPage() {
         labelOptions={labelOptions}
         totalCount={taskState.all.length}
         filteredCount={filteredTasks.length}
-        onChange={setTaskFilters}
+        onChange={onFiltersChange}
       />
 
       <KanbanSection
         tasks={filteredGrouped}
         allTasks={filteredTasks}
+        members={members}
+        categories={categories}
         onLocalPatch={taskState.patchTaskLocal}
         onLocalRemove={taskState.removeTaskLocal}
         onRefetch={taskState.refetch}
@@ -299,13 +329,16 @@ export function BoardsPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Responsável</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Responsável <span className="text-red-500">*</span>
+                </label>
                 <select
                   value={assigneeId}
                   onChange={(e) => setAssigneeId(e.target.value)}
+                  required
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                 >
-                  <option value="">Sem responsável</option>
+                  {members.length === 0 && <option value="">Nenhum membro disponível</option>}
                   {members.map((member) => (
                     <option key={member.id} value={member.id}>
                       {member.fullName || member.email}

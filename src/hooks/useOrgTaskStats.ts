@@ -1,11 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchOrganizationTasks } from '../services/apiData'
+import { useMembersCount } from './useMembersCount'
+import { pollIntervalForMemberCount } from '../utils/pollInterval'
 import type { Task } from '../types'
 
-const POLL_MS = 4000
+function startOfToday() {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function parseDue(task: Task) {
+  if (!task.dueDate) return null
+  const d = new Date(`${task.dueDate}T00:00:00`)
+  return Number.isNaN(d.getTime()) ? null : d
+}
 
 export function useOrgTaskStats(organizationId?: string) {
   const [tasks, setTasks] = useState<Task[]>([])
+  const memberCount = useMembersCount(organizationId)
+  const pollMs = pollIntervalForMemberCount(memberCount)
 
   useEffect(() => {
     if (!organizationId) return
@@ -19,27 +33,41 @@ export function useOrgTaskStats(organizationId?: string) {
       }
     }
     void load()
-    const id = window.setInterval(() => void load(), POLL_MS)
+    const id = window.setInterval(() => void load(), pollMs)
     return () => {
       cancelled = true
       window.clearInterval(id)
     }
-  }, [organizationId])
+  }, [organizationId, pollMs])
 
   return useMemo(() => {
-    const active = tasks.filter((task) => task.status !== 'done').length
-    const upcoming = tasks.filter((task) => {
-      if (!task.dueDate || task.status === 'done') return false
-      const taskDate = new Date(task.dueDate)
-      const now = new Date()
-      const diffDays = (taskDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-      return diffDays >= 0 && diffDays <= 7
-    }).length
+    const today = startOfToday()
+    const inSevenDays = new Date(today)
+    inSevenDays.setDate(inSevenDays.getDate() + 7)
+
+    const active = tasks.filter((task) => task.status !== 'done')
+    const overdueTasks = active
+      .filter((task) => {
+        const d = parseDue(task)
+        return d !== null && d < today
+      })
+      .sort((a, b) => (parseDue(a)?.getTime() ?? 0) - (parseDue(b)?.getTime() ?? 0))
+
+    const upcomingTasks = active
+      .filter((task) => {
+        const d = parseDue(task)
+        return d !== null && d >= today && d <= inSevenDays
+      })
+      .sort((a, b) => (parseDue(a)?.getTime() ?? 0) - (parseDue(b)?.getTime() ?? 0))
 
     return {
-      totalActiveTasks: active,
-      upcomingDeadlines: upcoming,
+      totalActiveTasks: active.length,
+      upcomingDeadlines: upcomingTasks.length,
+      overdueCount: overdueTasks.length,
+      upcomingTasks,
+      overdueTasks,
       totalTasks: tasks.length,
+      memberCount,
     }
-  }, [tasks])
+  }, [tasks, memberCount])
 }

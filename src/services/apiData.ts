@@ -32,7 +32,7 @@ export async function createTask(params: {
   assigneeName?: string
   boardId: string
   organizationId: string
-  assignedTo: string | null
+  assignedTo: string
 }) {
   void params.organizationId
   return apiFetchJson<Task>('POST', '/api/tasks', {
@@ -53,6 +53,21 @@ export async function updateTaskStatus(taskId: string, status: TaskStatus) {
 
 export async function updateTaskFavorite(taskId: string, favorite: boolean) {
   return apiFetchJson<Task>('PATCH', `/api/tasks/${taskId}`, { favorite })
+}
+
+export async function updateTask(
+  taskId: string,
+  patch: {
+    title?: string
+    description?: string
+    label?: string
+    priority?: 'low' | 'medium' | 'high' | null
+    dueDate?: string | null
+    assignedTo?: string
+    assigneeName?: string
+  },
+) {
+  return apiFetchJson<Task>('PATCH', `/api/tasks/${taskId}`, patch)
 }
 
 export async function fetchTaskNotes(taskId: string) {

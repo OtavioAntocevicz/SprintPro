@@ -1,15 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchBoardTasks } from '../services/apiData'
+import { useMembersCount } from './useMembersCount'
+import { pollIntervalForMemberCount } from '../utils/pollInterval'
 import { taskPhase } from '../utils/taskStatus'
 import type { Task } from '../types'
 
-/** Polling em segundo plano; o movimento no Kanban usa atualização local (instantâneo). */
-const POLL_MS = 10000
+export type TaskLocalPatch = Partial<
+  Pick<
+    Task,
+    | 'status'
+    | 'favorite'
+    | 'notesCount'
+    | 'title'
+    | 'description'
+    | 'label'
+    | 'priority'
+    | 'dueDate'
+    | 'assigneeName'
+    | 'assignedTo'
+  >
+>
 
 export function useTasks(organizationId?: string, boardId?: string) {
   const [tasks, setTasks] = useState<Task[]>([])
+  const memberCount = useMembersCount(organizationId)
+  const pollMs = pollIntervalForMemberCount(memberCount)
 
-  const patchTaskLocal = useCallback((taskId: string, patch: Partial<Pick<Task, 'status' | 'favorite' | 'notesCount'>>) => {
+  const patchTaskLocal = useCallback((taskId: string, patch: TaskLocalPatch) => {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...patch } : t)))
   }, [])
 
@@ -37,12 +54,12 @@ export function useTasks(organizationId?: string, boardId?: string) {
       }
     }
     void load()
-    const id = window.setInterval(() => void load(), POLL_MS)
+    const id = window.setInterval(() => void load(), pollMs)
     return () => {
       cancelled = true
       window.clearInterval(id)
     }
-  }, [organizationId, boardId])
+  }, [organizationId, boardId, pollMs])
 
   const grouped = useMemo(() => {
     const todo = tasks.filter((task) => taskPhase(task.status) === 'todo')

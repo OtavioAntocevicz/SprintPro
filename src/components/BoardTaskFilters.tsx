@@ -14,8 +14,8 @@ type Props = {
   onChange: (filters: TaskFilters) => void
 }
 
-const inputClass =
-  'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
+const selectClass =
+  'min-w-[7rem] rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-7 text-sm font-medium text-slate-900 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100'
 
 export function BoardTaskFilters({
   filters,
@@ -29,30 +29,21 @@ export function BoardTaskFilters({
     onChange({ ...filters, ...partial })
   }
 
-  return (
-    <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-[12rem] flex-1">
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
-            Buscar por título
-          </label>
-          <input
-            type="search"
-            value={filters.query}
-            onChange={(e) => patch({ query: e.target.value })}
-            placeholder="Nome da tarefa..."
-            className={`w-full ${inputClass}`}
-          />
-        </div>
+  const active = hasActiveFilters({ ...filters, query: '' })
 
-        <div className="min-w-[10rem]">
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
-            Categoria
-          </label>
+  return (
+    <section className="mb-5">
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-3 py-2 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900/80">
+        <span className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Filtros</span>
+
+        <div className="h-5 w-px bg-slate-200 dark:bg-slate-700" />
+
+        <label className="flex items-center gap-1.5 rounded-lg px-2 hover:bg-slate-50 dark:hover:bg-slate-800">
+          <span className="text-xs text-slate-400">Categoria</span>
           <select
             value={filters.label}
             onChange={(e) => patch({ label: e.target.value })}
-            className={`w-full ${inputClass}`}
+            className={selectClass}
           >
             <option value="">Todas</option>
             {labelOptions.map((label) => (
@@ -61,16 +52,14 @@ export function BoardTaskFilters({
               </option>
             ))}
           </select>
-        </div>
+        </label>
 
-        <div className="min-w-[10rem]">
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
-            Responsável
-          </label>
+        <label className="flex items-center gap-1.5 rounded-lg px-2 hover:bg-slate-50 dark:hover:bg-slate-800">
+          <span className="text-xs text-slate-400">Responsável</span>
           <select
             value={filters.assigneeId}
             onChange={(e) => patch({ assigneeId: e.target.value })}
-            className={`w-full ${inputClass}`}
+            className={selectClass}
           >
             <option value="">Todos</option>
             <option value="unassigned">Sem responsável</option>
@@ -80,16 +69,14 @@ export function BoardTaskFilters({
               </option>
             ))}
           </select>
-        </div>
+        </label>
 
-        <div className="min-w-[10rem]">
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
-            Prazo
-          </label>
+        <label className="flex items-center gap-1.5 rounded-lg px-2 hover:bg-slate-50 dark:hover:bg-slate-800">
+          <span className="text-xs text-slate-400">Prazo</span>
           <select
             value={filters.due}
             onChange={(e) => patch({ due: e.target.value as TaskFilters['due'] })}
-            className={`w-full ${inputClass}`}
+            className={selectClass}
           >
             <option value="all">Todos</option>
             <option value="with-due">Com prazo</option>
@@ -97,58 +84,55 @@ export function BoardTaskFilters({
             <option value="overdue">Atrasadas</option>
             <option value="next-7-days">Próximos 7 dias</option>
           </select>
-        </div>
+        </label>
 
-        <div className="min-w-[10rem]">
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
-            Prioridade
-          </label>
+        <label className="flex items-center gap-1.5 rounded-lg px-2 hover:bg-slate-50 dark:hover:bg-slate-800">
+          <span className="text-xs text-slate-400">Prioridade</span>
           <select
             value={filters.priority}
             onChange={(e) => patch({ priority: e.target.value as TaskFilters['priority'] })}
-            className={`w-full ${inputClass}`}
+            className={selectClass}
           >
             <option value="all">Todas</option>
             <option value="high">Alta</option>
             <option value="medium">Média</option>
             <option value="low">Baixa</option>
           </select>
-        </div>
+        </label>
 
-        <div className="min-w-[10rem]">
-          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
-            Ordenar por
-          </label>
+        <label className="flex items-center gap-1.5 rounded-lg px-2 hover:bg-slate-50 dark:hover:bg-slate-800">
+          <span className="text-xs text-slate-400">Ordenar</span>
           <select
             value={filters.sort}
             onChange={(e) => patch({ sort: e.target.value as TaskFilters['sort'] })}
-            className={`w-full ${inputClass}`}
+            className={selectClass}
           >
             <option value="default">Padrão</option>
             <option value="title-asc">Título (A–Z)</option>
             <option value="title-desc">Título (Z–A)</option>
             <option value="due-asc">Prazo (mais próximo)</option>
             <option value="due-desc">Prazo (mais distante)</option>
-            <option value="priority-desc">Prioridade (maior primeiro)</option>
+            <option value="priority-desc">Prioridade</option>
           </select>
+        </label>
+
+        <div className="ml-auto flex items-center gap-3">
+          {active && (
+            <button
+              type="button"
+              onClick={() => onChange({ ...defaultTaskFilters, query: filters.query })}
+              className="text-xs font-medium text-violet-600 hover:underline dark:text-violet-400"
+            >
+              Limpar
+            </button>
+          )}
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {filteredCount === totalCount
+              ? `${totalCount} tarefa${totalCount === 1 ? '' : 's'}`
+              : `${filteredCount} de ${totalCount}`}
+          </p>
         </div>
-
-        {hasActiveFilters(filters) && (
-          <button
-            type="button"
-            onClick={() => onChange({ ...defaultTaskFilters })}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            Limpar filtros
-          </button>
-        )}
       </div>
-
-      <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-        {filteredCount === totalCount
-          ? `${totalCount} tarefa${totalCount === 1 ? '' : 's'} neste quadro`
-          : `${filteredCount} de ${totalCount} tarefa${totalCount === 1 ? '' : 's'}`}
-      </p>
     </section>
   )
 }

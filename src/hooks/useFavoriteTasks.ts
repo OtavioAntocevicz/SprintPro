@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchOrganizationTasks } from '../services/apiData'
+import { useMembersCount } from './useMembersCount'
+import { pollIntervalForMemberCount } from '../utils/pollInterval'
 import type { Task } from '../types'
-
-const POLL_MS = 10000
 
 export function useFavoriteTasks(organizationId?: string) {
   const [tasks, setTasks] = useState<Task[]>([])
+  const memberCount = useMembersCount(organizationId)
+  const pollMs = pollIntervalForMemberCount(memberCount)
 
   useEffect(() => {
     if (!organizationId) return
@@ -19,12 +21,12 @@ export function useFavoriteTasks(organizationId?: string) {
       }
     }
     void load()
-    const id = window.setInterval(() => void load(), POLL_MS)
+    const id = window.setInterval(() => void load(), pollMs)
     return () => {
       cancelled = true
       window.clearInterval(id)
     }
-  }, [organizationId])
+  }, [organizationId, pollMs])
 
   return useMemo(() => tasks.filter((t) => t.favorite), [tasks])
 }

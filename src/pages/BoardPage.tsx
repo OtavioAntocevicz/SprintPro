@@ -1,10 +1,11 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import { KanbanSection } from '../components/KanbanSection'
 import { Layout } from '../components/Layout'
 import { useTasks } from '../hooks/useTasks'
-import { createTask } from '../services/apiData'
+import { createTask, fetchCategories, fetchMembers } from '../services/apiData'
 import { useAuthStore } from '../store/authStore'
+import type { AppUser, TaskCategory } from '../types'
 
 export function BoardPage() {
   const { boardId } = useParams()
@@ -12,6 +13,27 @@ export function BoardPage() {
   const taskState = useTasks(appUser?.organizationId, boardId)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [members, setMembers] = useState<AppUser[]>([])
+  const [categories, setCategories] = useState<TaskCategory[]>([])
+
+  useEffect(() => {
+    if (!appUser?.organizationId) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const [m, c] = await Promise.all([fetchMembers(), fetchCategories()])
+        if (!cancelled) {
+          setMembers(m)
+          setCategories(c)
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [appUser?.organizationId])
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -21,7 +43,8 @@ export function BoardPage() {
       description: description.trim(),
       boardId,
       organizationId: appUser.organizationId,
-      assignedTo: null,
+      assignedTo: appUser.id,
+      assigneeName: appUser.fullName,
     })
     await taskState.refetch()
     setTitle('')
@@ -53,6 +76,8 @@ export function BoardPage() {
         <KanbanSection
           tasks={{ todo: taskState.todo, doing: taskState.doing, done: taskState.done }}
           allTasks={taskState.all}
+          members={members}
+          categories={categories}
           onLocalPatch={taskState.patchTaskLocal}
           onLocalRemove={taskState.removeTaskLocal}
           onRefetch={taskState.refetch}

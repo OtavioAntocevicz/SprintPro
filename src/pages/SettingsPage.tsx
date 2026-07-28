@@ -13,7 +13,9 @@ import {
   updateProfile,
 } from '../services/apiData'
 import { logout } from '../services/auth'
+import { useMembersCount } from '../hooks/useMembersCount'
 import { useAuthStore } from '../store/authStore'
+import { pollIntervalForMemberCount } from '../utils/pollInterval'
 import { userRoleLabel } from '../utils/userRoleLabel'
 import type { AppUser, TaskCategory } from '../types'
 
@@ -27,6 +29,8 @@ function formatLastSeen(lastSeenAt?: string) {
 export function SettingsPage() {
   const appUser = useAuthStore((s) => s.appUser)
   const isOwner = appUser?.role === 'owner'
+  const memberCount = useMembersCount(appUser?.organizationId)
+  const pollMs = pollIntervalForMemberCount(memberCount)
   const [fullName, setFullName] = useState('')
   const [orgName, setOrgName] = useState('')
   const [members, setMembers] = useState<AppUser[]>([])
@@ -55,12 +59,12 @@ export function SettingsPage() {
       }
     }
     void load()
-    const id = window.setInterval(() => void load(), 12000)
+    const id = window.setInterval(() => void load(), pollMs)
     return () => {
       cancelled = true
       window.clearInterval(id)
     }
-  }, [appUser?.organizationId])
+  }, [appUser?.organizationId, pollMs])
 
   const membersWithFavoritePermission = useMemo(
     () => members.filter((m) => m.role === 'owner' || m.canFavorite).length,
