@@ -60,6 +60,15 @@ export function IconReports({ className = 'h-5 w-5' }: IconProps) {
   )
 }
 
+export function IconCompleted({ className = 'h-5 w-5' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="8" stroke="#6B7280" />
+      <path d="M8.5 12.2l2.2 2.2 4.8-5" stroke="#7C3AED" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function IconSettings({ className = 'h-5 w-5' }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" stroke="#7C3AED" strokeWidth="1.7">

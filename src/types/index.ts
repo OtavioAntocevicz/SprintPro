@@ -70,4 +70,5 @@ export interface Task {
   notesCount?: number
   assignedTo: string | null
   createdAt: string
+  completedAt?: string
 }

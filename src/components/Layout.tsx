@@ -8,6 +8,7 @@ import { useSidebarStore } from '../store/sidebarStore'
 import { useThemeStore } from '../store/themeStore'
 import { userRoleLabel } from '../utils/userRoleLabel'
 import {
+  IconCompleted,
   IconDashboard,
   IconKanban,
   IconLogout,
@@ -24,6 +25,7 @@ type Props = {
 const navItems = [
   { icon: IconDashboard, label: 'Dashboard', to: '/dashboard' },
   { icon: IconKanban, label: 'Quadros', to: '/boards' },
+  { icon: IconCompleted, label: 'Concluídos', to: '/completed' },
   { icon: IconMembers, label: 'Membros', to: '/members' },
   { icon: IconReports, label: 'Relatórios', to: '/reports' },
   { icon: IconSettings, label: 'Configurações', to: '/settings' },

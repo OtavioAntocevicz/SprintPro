@@ -102,6 +102,7 @@ function mapTask(r) {
     notesCount: Number(r.notes_count ?? 0),
     assignedTo: r.assigned_to,
     createdAt: toIso(r.created_at),
+    completedAt: r.completed_at ? toIso(r.completed_at) : undefined,
   }
 }
 
@@ -735,6 +736,10 @@ app.get('/api/boards/:boardId/tasks', authRequired, async (req, res) => {
               (SELECT COUNT(*)::int FROM task_notes tn WHERE tn.task_id = t.id) AS notes_count
        FROM tasks t
        WHERE t.board_id = $1 AND t.organization_id = $2
+         AND (
+           t.status <> 'done'
+           OR (t.completed_at IS NOT NULL AND t.completed_at >= now() - interval '24 hours')
+         )
        ORDER BY t.created_at ASC`,
       [boardId, req.user.orgId],
     )
@@ -759,6 +764,24 @@ app.get('/api/organization/tasks', authRequired, async (req, res) => {
   } catch (e) {
     console.error(e)
     return res.status(500).json({ error: 'Erro ao listar tarefas da organização.' })
+  }
+})
+
+app.get('/api/organization/completed-tasks', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  try {
+    const { rows } = await pool.query(
+      `SELECT t.*,
+              (SELECT COUNT(*)::int FROM task_notes tn WHERE tn.task_id = t.id) AS notes_count
+       FROM tasks t
+       WHERE t.organization_id = $1 AND t.status = 'done'
+       ORDER BY t.completed_at DESC NULLS LAST, t.created_at DESC`,
+      [req.user.orgId],
+    )
+    return res.json(rows.map(mapTask))
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao listar tarefas concluídas.' })
   }
 })
 
@@ -888,6 +911,11 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
     if (statusIsValid) {
       updates.push(`status = $${idx++}`)
       values.push(normalizedStatus)
+      if (normalizedStatus === 'done') {
+        updates.push(`completed_at = now()`)
+      } else {
+        updates.push(`completed_at = NULL`)
+      }
     }
     if (hasFavorite) {
       updates.push(`favorite = $${idx++}`)

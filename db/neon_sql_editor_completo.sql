@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   assigned_to       text,
   favorite          boolean NOT NULL DEFAULT false,
   notes             text NOT NULL DEFAULT '',
+  completed_at      timestamptz,
   created_at        timestamptz NOT NULL DEFAULT now()
 );
 
@@ -112,6 +113,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS can_favorite boolean NOT NULL DEFAULT
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at timestamptz;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS favorite boolean NOT NULL DEFAULT false;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS notes text NOT NULL DEFAULT '';
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+UPDATE tasks SET completed_at = COALESCE(completed_at, created_at) WHERE status = 'done' AND completed_at IS NULL;
 
 -- Histórico de anotações por tarefa (tópicos com autor e data/hora)
 CREATE TABLE IF NOT EXISTS task_notes (

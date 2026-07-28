@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { useState } from 'react'
-import { deleteTask, updateTaskFavorite, updateTaskStatus } from '../services/apiData'
+import { updateTaskFavorite, updateTaskStatus } from '../services/apiData'
 import { TaskEditModal } from './TaskEditModal'
 import { TaskNotesModal } from './TaskNotesModal'
 import { useAuthStore } from '../store/authStore'
@@ -47,16 +47,12 @@ function TaskCard({
   task,
   onToggleFavorite,
   canFavorite,
-  canDelete,
-  onDeleteTask,
   onOpenNotes,
   onOpenEdit,
 }: {
   task: Task
   onToggleFavorite: (task: Task) => void
   canFavorite: boolean
-  canDelete: boolean
-  onDeleteTask: (task: Task) => void
   onOpenNotes: (task: Task) => void
   onOpenEdit: (task: Task) => void
 }) {
@@ -132,26 +128,6 @@ function TaskCard({
               ★
             </button>
           )}
-          {canDelete && (
-            <details
-              onMouseDown={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-              className="relative"
-            >
-              <summary className="cursor-pointer list-none rounded px-1 text-base leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200">
-                ⋯
-              </summary>
-              <div className="absolute right-0 z-20 mt-1 min-w-36 rounded-md border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-800">
-                <button
-                  type="button"
-                  onClick={() => onDeleteTask(task)}
-                  className="w-full px-3 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
-                >
-                  Excluir tarefa
-                </button>
-              </div>
-            </details>
-          )}
         </div>
       </div>
       <button
@@ -189,8 +165,6 @@ function Column({
   list,
   onToggleFavorite,
   canFavorite,
-  isOwner,
-  onDeleteTask,
   onOpenNotes,
   onOpenEdit,
 }: {
@@ -200,8 +174,6 @@ function Column({
   list: Task[]
   onToggleFavorite: (task: Task) => void
   canFavorite: boolean
-  isOwner: boolean
-  onDeleteTask: (task: Task) => void
   onOpenNotes: (task: Task) => void
   onOpenEdit: (task: Task) => void
 }) {
@@ -216,9 +188,16 @@ function Column({
           : 'border-slate-200/80 bg-[#eef1f7] dark:border-slate-600 dark:bg-slate-800/50'
       } `}
     >
-      <h2 className="mb-3 flex-shrink-0 text-lg font-semibold text-slate-900 dark:text-slate-100">
-        {title} <span className="text-slate-400 dark:text-slate-500">({list.length})</span>
-      </h2>
+      <div className="mb-3 flex-shrink-0">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+          {title} <span className="text-slate-400 dark:text-slate-500">({list.length})</span>
+        </h2>
+        {status === 'done' && (
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Visíveis por 24h; histórico em Concluídos
+          </p>
+        )}
+      </div>
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
         {list.map((task) => (
           <TaskCard
@@ -226,8 +205,6 @@ function Column({
             task={task}
             onToggleFavorite={onToggleFavorite}
             canFavorite={canFavorite}
-            canDelete={isOwner && status === 'done'}
-            onDeleteTask={onDeleteTask}
             onOpenNotes={onOpenNotes}
             onOpenEdit={onOpenEdit}
           />
@@ -243,8 +220,6 @@ export function KanbanSection({
   members,
   categories,
   onLocalPatch,
-  onLocalRemove,
-  onRefetch,
 }: Props) {
   const [active, setActive] = useState<Task | null>(null)
   const [notesTask, setNotesTask] = useState<Task | null>(null)
@@ -252,7 +227,6 @@ export function KanbanSection({
   const [feedback, setFeedback] = useState('')
   const appUser = useAuthStore((s) => s.appUser)
   const canFavorite = appUser?.role === 'owner' || appUser?.canFavorite === true
-  const isOwner = appUser?.role === 'owner'
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   function onDragStart(e: DragStartEvent) {
@@ -282,12 +256,16 @@ export function KanbanSection({
     if (!newStatus) return
     if (taskPhase(t.status) === newStatus) return
 
-    onLocalPatch(taskId, { status: newStatus })
+    const previousCompletedAt = t.completedAt
+    onLocalPatch(taskId, {
+      status: newStatus,
+      completedAt: newStatus === 'done' ? new Date().toISOString() : undefined,
+    })
     void (async () => {
       try {
         await updateTaskStatus(taskId, newStatus)
       } catch (err) {
-        onLocalPatch(taskId, { status: t.status })
+        onLocalPatch(taskId, { status: t.status, completedAt: previousCompletedAt })
         setFeedback(err instanceof Error ? err.message : 'Não foi possível alterar a coluna. Tente de novo.')
       }
     })()
@@ -303,22 +281,6 @@ export function KanbanSection({
       } catch (err) {
         onLocalPatch(task.id, { favorite: task.favorite ?? false })
         setFeedback(err instanceof Error ? err.message : 'Não foi possível atualizar favorito.')
-      }
-    })()
-  }
-
-  function onDeleteTask(task: Task) {
-    if (!isOwner) return
-    const ok = window.confirm(`Excluir a tarefa "${task.title}"?`)
-    if (!ok) return
-
-    onLocalRemove(task.id)
-    void (async () => {
-      try {
-        await deleteTask(task.id)
-      } catch (err) {
-        setFeedback(err instanceof Error ? err.message : 'Não foi possível excluir a tarefa.')
-        await onRefetch()
       }
     })()
   }
@@ -345,8 +307,6 @@ export function KanbanSection({
             list={tasks[col.key]}
             onToggleFavorite={onToggleFavorite}
             canFavorite={canFavorite}
-            isOwner={isOwner}
-            onDeleteTask={onDeleteTask}
             onOpenNotes={setNotesTask}
             onOpenEdit={setEditTask}
           />

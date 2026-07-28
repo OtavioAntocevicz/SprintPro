@@ -4,6 +4,7 @@ import { useAuthBootstrap } from './hooks/useAuthBootstrap'
 import { AcceptInvitePage } from './pages/AcceptInvitePage'
 import { BoardsPage } from './pages/BoardsPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { CompletedPage } from './pages/CompletedPage'
 import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
 import { MembersPage } from './pages/MembersPage'
@@ -36,6 +37,14 @@ function App() {
         element={
           <ProtectedRoute>
             <BoardsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/completed"
+        element={
+          <ProtectedRoute>
+            <CompletedPage />
           </ProtectedRoute>
         }
       />

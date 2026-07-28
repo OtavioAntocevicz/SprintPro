@@ -23,6 +23,10 @@ export async function fetchOrganizationTasks() {
   return apiFetchJson<Task[]>('GET', '/api/organization/tasks')
 }
 
+export async function fetchCompletedTasks() {
+  return apiFetchJson<Task[]>('GET', '/api/organization/completed-tasks')
+}
+
 export async function createTask(params: {
   title: string
   description: string

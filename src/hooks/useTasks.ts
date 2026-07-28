@@ -18,6 +18,7 @@ export type TaskLocalPatch = Partial<
     | 'dueDate'
     | 'assigneeName'
     | 'assignedTo'
+    | 'completedAt'
   >
 >
 
