@@ -18,6 +18,11 @@ const JWT_SECRET = process.env.JWT_SECRET
 const DATABASE_URL = process.env.DATABASE_URL
 const PORT = Number(process.env.API_PORT || 8787)
 const IS_PROD = process.env.NODE_ENV === 'production'
+/** Temporário: devolve o link de reset na API (sem Resend). Remova após configurar e-mail. */
+const SHOW_PASSWORD_RESET_LINK =
+  !IS_PROD ||
+  process.env.SHOW_PASSWORD_RESET_LINK === '1' ||
+  process.env.SHOW_PASSWORD_RESET_LINK === 'true'
 
 if (!JWT_SECRET || JWT_SECRET.length < 16) {
   console.error('Defina JWT_SECRET (mín. 16 caracteres) no .env na raiz do projeto.')
@@ -411,12 +416,21 @@ app.post('/api/auth/forgot-password', authRateLimit, async (req, res) => {
       email: user.email,
       type: 'password_reset',
     })
-    if (IS_PROD) {
-      return res.json(genericResponse)
+    const appUrl = process.env.APP_URL || (IS_PROD ? '' : 'http://localhost:5173')
+    const resetLink = appUrl
+      ? `${appUrl.replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token)}`
+      : `/reset-password?token=${encodeURIComponent(token)}`
+    if (SHOW_PASSWORD_RESET_LINK) {
+      console.log(`[auth] Link temporário de reset para ${user.email}: ${resetLink}`)
+      return res.json({
+        ...genericResponse,
+        message:
+          'Link temporário gerado (sem e-mail). Use o link abaixo para redefinir a senha.',
+        resetLink,
+      })
     }
-    const appUrl = process.env.APP_URL || 'http://localhost:5173'
-    const resetLink = `${appUrl}/reset-password?token=${encodeURIComponent(token)}`
-    return res.json({ ...genericResponse, resetLink })
+    // Sem Resend ainda: em produção sem a flag, só mensagem genérica.
+    return res.json(genericResponse)
   } catch (e) {
     console.error(e)
     return res.status(500).json({ error: 'Erro ao solicitar recuperação de senha.' })

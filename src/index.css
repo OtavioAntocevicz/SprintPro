@@ -5,11 +5,22 @@
   box-sizing: border-box;
 }
 
+html {
+  background: #f4f5fa;
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  background: #f5f7fb;
+  background: #f4f5fa;
   color: #0f172a;
+  overscroll-behavior: none;
+}
+
+body[data-theme='dark'],
+html:has(body[data-theme='dark']) {
+  background: #020617;
 }
 
 body,
