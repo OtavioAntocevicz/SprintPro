@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node app.mjs",
-    "dev": "node --watch app.mjs"
+    "dev": "node --watch app.mjs",
+    "reset-password": "node reset-password.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",

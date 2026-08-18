@@ -182,7 +182,7 @@ function Column({
   return (
     <section
       ref={setNodeRef}
-      className={`flex min-h-[min(50vh,480px)] flex-col rounded-2xl border-2 border-dashed p-3 transition-colors ${
+      className={`flex min-h-[min(50vh,480px)] flex-col overflow-hidden rounded-2xl border-2 border-dashed p-3 transition-colors ${
         isOver
           ? 'border-violet-500 bg-violet-50/80 dark:bg-violet-950/50'
           : 'border-slate-200/80 bg-[#eef1f7] dark:border-slate-600 dark:bg-slate-800/50'
@@ -198,7 +198,7 @@ function Column({
           </p>
         )}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain">
         {list.map((task) => (
           <TaskCard
             key={task.id}
