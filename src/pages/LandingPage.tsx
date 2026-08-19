@@ -103,16 +103,16 @@ const faqs = [
 
 export function LandingPage() {
   return (
-    <PublicShell className="bg-[#f3f4f7] dark:bg-slate-950">
+    <PublicShell className="bg-[#f3f4f7]">
       <AppHeader />
-      <section className="border-b border-slate-200/60 px-4 py-18 text-center dark:border-slate-800">
+      <section className="border-b border-slate-200/60 px-4 py-18 text-center">
         <div className="mx-auto max-w-4xl">
-          <h1 className="text-5xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100 md:text-6xl">
+          <h1 className="text-5xl font-extrabold tracking-tight text-slate-800 md:text-6xl">
             Gestão de tarefas que
             <br />
             acelera seu time
           </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-base text-slate-600 dark:text-slate-400">
+          <p className="mx-auto mt-5 max-w-2xl text-base text-slate-600">
             Organize projetos com Kanban, filtros, relatórios e permissões — MVP pronto para operar seu time.
           </p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
