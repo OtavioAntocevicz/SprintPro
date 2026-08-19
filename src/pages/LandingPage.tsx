@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
+import { AuthHomeRedirect } from '../components/AuthHomeRedirect'
 import { PublicShell } from '../components/PublicShell'
 
 const features = [
@@ -104,6 +105,7 @@ const faqs = [
 export function LandingPage() {
   return (
     <PublicShell className="bg-[#f3f4f7]">
+      <AuthHomeRedirect />
       <AppHeader />
       <section className="border-b border-slate-200/60 px-4 py-18 text-center">
         <div className="mx-auto max-w-4xl">

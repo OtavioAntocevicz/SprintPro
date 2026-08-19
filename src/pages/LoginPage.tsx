@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
+import { AuthHomeRedirect } from '../components/AuthHomeRedirect'
 import { PublicShell } from '../components/PublicShell'
 import { loginOwner, registerOwner } from '../services/auth'
 
@@ -70,6 +71,7 @@ export function LoginPage() {
 
   return (
     <PublicShell>
+      <AuthHomeRedirect />
       <AppHeader />
       <div className="grid place-items-center px-4 py-10">
         <form

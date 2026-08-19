@@ -1,4 +1,5 @@
-import { clearToken, setToken } from '../lib/apiClient'
+import { setToken } from '../lib/apiClient'
+import { setCachedUser } from '../lib/authSession'
 import { useAuthStore } from '../store/authStore'
 import type { AppUser } from '../types'
 
@@ -25,8 +26,10 @@ export async function registerOwner(params: {
     organizationName: params.organizationName,
   })
   setToken(data.token)
+  const appUser = mergeUser(data.user, data.organization)
+  setCachedUser(appUser)
   useAuthStore.setState({
-    appUser: mergeUser(data.user, data.organization),
+    appUser,
     loading: false,
     error: null,
   })
@@ -35,8 +38,10 @@ export async function registerOwner(params: {
 export async function loginOwner(email: string, password: string) {
   const data = await apiPost<AuthPayload>('/api/auth/login', { email, password })
   setToken(data.token)
+  const appUser = mergeUser(data.user, data.organization)
+  setCachedUser(appUser)
   useAuthStore.setState({
-    appUser: mergeUser(data.user, data.organization),
+    appUser,
     loading: false,
     error: null,
   })
@@ -50,8 +55,10 @@ export async function registerWithInvite(params: {
 }) {
   const data = await apiPost<AuthPayload>('/api/auth/register-invite', params)
   setToken(data.token)
+  const appUser = mergeUser(data.user, data.organization)
+  setCachedUser(appUser)
   useAuthStore.setState({
-    appUser: mergeUser(data.user, data.organization),
+    appUser,
     loading: false,
     error: null,
   })
@@ -68,7 +75,6 @@ export async function resetPassword(token: string, newPassword: string) {
 }
 
 export function logout() {
-  clearToken()
   useAuthStore.getState().clearSession()
 }
 

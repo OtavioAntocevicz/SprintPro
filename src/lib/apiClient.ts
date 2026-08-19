@@ -2,6 +2,20 @@ const TOKEN_KEY = 'sprintpro_token'
 
 export { TOKEN_KEY }
 
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
+export function isUnauthorizedError(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 401
+}
+
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY)
 }
@@ -36,7 +50,7 @@ export async function apiFetchJson<T>(method: string, path: string, body?: unkno
   }
   if (!res.ok) {
     const j = (await res.json().catch(() => ({}))) as { error?: string }
-    throw new Error(j.error || `Erro ${res.status}`)
+    throw new ApiError(j.error || `Erro ${res.status}`, res.status)
   }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
