@@ -14,6 +14,7 @@ import {
 } from '../services/apiData'
 import { logout } from '../services/auth'
 import { useMembersCount } from '../hooks/useMembersCount'
+import { usePwaInstall } from '../hooks/usePwaInstall'
 import { useAuthStore } from '../store/authStore'
 import { pollIntervalForMemberCount } from '../utils/pollInterval'
 import { userRoleLabel } from '../utils/userRoleLabel'
@@ -43,6 +44,7 @@ export function SettingsPage() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [feedback, setFeedback] = useState('')
+  const pwa = usePwaInstall()
 
   useEffect(() => {
     if (!appUser?.organizationId) return
@@ -280,6 +282,49 @@ export function SettingsPage() {
               Salvar organização
             </button>
           </form>
+        </article>
+      </section>
+
+      <section className="mt-4">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+          <h2 className="text-lg font-semibold">Aplicativo (PWA)</h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Instale o SprintPro no computador ou celular para abrir como app, com ícone na área de trabalho ou tela
+            inicial.
+          </p>
+
+          {pwa.installed ? (
+            <p className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+              ✓ SprintPro já está instalado neste dispositivo
+            </p>
+          ) : (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  pwa.clearFeedback()
+                  void pwa.install()
+                }}
+                disabled={pwa.installing}
+                className="rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {pwa.installing ? 'Instalando...' : 'Instalar SprintPro'}
+              </button>
+              {pwa.canPromptInstall && (
+                <span className="text-xs text-emerald-600 dark:text-emerald-400">Pronto para instalar</span>
+              )}
+            </div>
+          )}
+
+          {pwa.isIos && !pwa.installed && (
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              iOS: Safari → Compartilhar → Adicionar à Tela de Início.
+            </p>
+          )}
+
+          {pwa.feedback && (
+            <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">{pwa.feedback}</p>
+          )}
         </article>
       </section>
 
