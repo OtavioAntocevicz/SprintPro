@@ -7,10 +7,10 @@ type Props = {
 }
 
 export function ProtectedRoute({ children }: Props) {
-  const { appUser, loading, error } = useAuthStore()
+  const { appUser, loading, error, revalidateSession } = useAuthStore()
   const hasSession = Boolean(getToken())
 
-  if (loading) {
+  if (loading || (hasSession && !appUser && !error)) {
     return <div className="grid min-h-screen place-items-center text-slate-600">Carregando...</div>
   }
 
@@ -18,22 +18,28 @@ export function ProtectedRoute({ children }: Props) {
     return <Navigate to="/login" replace />
   }
 
-  if (error) {
+  if (!appUser) {
     return (
       <div className="grid min-h-screen place-items-center px-4 text-center">
-        <div>
-          <p className="text-sm text-red-600">Erro ao carregar perfil: {error}</p>
-          <p className="mt-2 text-sm text-slate-600">
-            Tente sair e entrar novamente. Se persistir, verifique se a API está a correr (porta 8787 em dev) e a
-            `DATABASE_URL` no servidor.
+        <div className="max-w-md">
+          <p className="text-sm text-red-600">
+            {error ? `Erro ao reconectar: ${error}` : 'Não foi possível restaurar sua sessão.'}
           </p>
+          <p className="mt-2 text-sm text-slate-600">
+            Verifique sua conexão e tente novamente. Se o problema persistir, saia e entre de novo.
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => void revalidateSession()}
+              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
+            >
+              Tentar novamente
+            </button>
+          </div>
         </div>
       </div>
     )
-  }
-
-  if (!appUser) {
-    return <Navigate to="/login" replace />
   }
 
   return <>{children}</>
