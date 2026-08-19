@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { BrandLogo } from './BrandLogo'
 import { logout } from '../services/auth'
 import { useAuthStore } from '../store/authStore'
 
@@ -14,9 +15,9 @@ export function AppHeader({ appMode = false }: Props) {
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-3">
         <Link
           to={appMode ? '/dashboard' : '/'}
-          className="text-lg font-bold text-violet-600"
+          className="inline-flex items-center gap-2.5"
         >
-          SprintPro
+          <BrandLogo size="md" />
         </Link>
 
         <nav className="hidden items-center gap-8 text-sm font-medium text-slate-700 md:flex">
