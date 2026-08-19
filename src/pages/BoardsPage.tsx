@@ -48,6 +48,9 @@ export function BoardsPage() {
   }, [boards, boardsLoading, routeBoardId, navigate])
 
   const [showTaskModal, setShowTaskModal] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deletingBoard, setDeletingBoard] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [title, setTitle] = useState('')
@@ -263,14 +266,17 @@ export function BoardsPage() {
 
   async function onDeleteBoard() {
     if (!activeBoardId || !isOwner) return
-    const ok = window.confirm('Excluir este quadro e todas as tarefas nele?')
-    if (!ok) return
+    setDeleteError('')
+    setDeletingBoard(true)
     try {
       await deleteBoard(activeBoardId)
+      setShowDeleteConfirm(false)
       await refetchBoards()
       navigate('/boards')
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : 'Falha ao excluir quadro.')
+      setDeleteError(e instanceof Error ? e.message : 'Falha ao excluir quadro.')
+    } finally {
+      setDeletingBoard(false)
     }
   }
 
@@ -358,7 +364,10 @@ export function BoardsPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void onDeleteBoard()}
+                    onClick={() => {
+                      setDeleteError('')
+                      setShowDeleteConfirm(true)
+                    }}
                     className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 dark:border-red-900 dark:text-red-400"
                   >
                     Excluir quadro
@@ -527,6 +536,48 @@ export function BoardsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && activeBoard && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 dark:bg-black/60">
+          <div
+            role="alertdialog"
+            aria-labelledby="delete-board-title"
+            aria-describedby="delete-board-desc"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:border dark:border-slate-700 dark:bg-slate-900"
+          >
+            <h2 id="delete-board-title" className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+              Excluir quadro?
+            </h2>
+            <p id="delete-board-desc" className="mt-3 text-sm text-slate-600 dark:text-slate-400">
+              Você está prestes a excluir o quadro{' '}
+              <strong className="text-slate-900 dark:text-slate-100">{activeBoard.name}</strong>. Todas as tarefas
+              deste quadro serão removidas permanentemente. Esta ação não pode ser desfeita.
+            </p>
+            {deleteError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{deleteError}</p>}
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={deletingBoard}
+                onClick={() => {
+                  setShowDeleteConfirm(false)
+                  setDeleteError('')
+                }}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={deletingBoard}
+                onClick={() => void onDeleteBoard()}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              >
+                {deletingBoard ? 'Excluindo...' : 'Sim, excluir quadro'}
+              </button>
+            </div>
           </div>
         </div>
       )}
