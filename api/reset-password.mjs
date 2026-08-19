@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { neonConfig, Pool } from '@neondatabase/serverless'
 import WebSocket from 'ws'
+import { isStrongPassword } from './lib/validate.mjs'
 
 neonConfig.webSocketConstructor = WebSocket
 
@@ -23,12 +24,6 @@ const email = String(process.argv[2] ?? '')
   .trim()
   .toLowerCase()
 const newPassword = String(process.argv[3] ?? '')
-
-function isStrongPassword(password) {
-  if (typeof password !== 'string') return false
-  if (password.length < 8) return false
-  return /[A-Za-z]/.test(password) && /\d/.test(password)
-}
 
 if (!email || !newPassword) {
   console.error('Uso: npm run reset-password -- email@dominio.com NovaSenha1')
@@ -48,7 +43,11 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 try {
   const hash = await bcrypt.hash(newPassword, 10)
   const { rowCount } = await pool.query(
-    'UPDATE users SET password_hash = $1 WHERE LOWER(email) = LOWER($2)',
+    `UPDATE users
+     SET password_hash = $1,
+         token_version = COALESCE(token_version, 0) + 1,
+         password_reset_jti = NULL
+     WHERE LOWER(email) = LOWER($2)`,
     [hash, email],
   )
   if (!rowCount) {

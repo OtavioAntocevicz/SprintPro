@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash     text,
   can_favorite      boolean NOT NULL DEFAULT false,
   last_seen_at      timestamptz,
+  token_version     integer NOT NULL DEFAULT 0,
+  password_reset_jti text,
   created_at        timestamptz NOT NULL DEFAULT now()
 );
 
@@ -147,6 +149,10 @@ CREATE TABLE IF NOT EXISTS task_categories (
 );
 
 CREATE INDEX IF NOT EXISTS idx_task_categories_org ON task_categories (organization_id);
+
+-- Migrações idempotentes (bases já existentes)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version integer NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_jti text;
 
 -- Fim. Regista utilizadores e dados só pela aplicação (API), não inserir à mão
 -- salvo testes com os INSERT comentados abaixo.

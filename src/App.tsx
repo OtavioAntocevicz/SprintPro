@@ -41,6 +41,14 @@ function App() {
         }
       />
       <Route
+        path="/boards/:boardId"
+        element={
+          <ProtectedRoute>
+            <BoardsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/completed"
         element={
           <ProtectedRoute>

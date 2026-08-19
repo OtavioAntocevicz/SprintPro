@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
+import { PublicShell } from '../components/PublicShell'
 import { resetPassword } from '../services/auth'
 
 export function ResetPasswordPage() {
@@ -42,12 +43,12 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <PublicShell>
       <AppHeader />
       <div className="grid place-items-center px-4 py-10">
-        <section className="w-full max-w-lg rounded-xl bg-white p-6 shadow-sm">
-          <h1 className="text-xl font-bold text-slate-900">Redefinir senha</h1>
-          <p className="mt-2 text-sm text-slate-600">
+        <section className="w-full max-w-lg rounded-xl bg-white p-6 shadow-sm dark:border dark:border-slate-700 dark:bg-slate-900">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Redefinir senha</h1>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
             Defina uma nova senha para sua conta.
           </p>
 
@@ -90,6 +91,6 @@ export function ResetPasswordPage() {
           </Link>
         </section>
       </div>
-    </div>
+    </PublicShell>
   )
 }

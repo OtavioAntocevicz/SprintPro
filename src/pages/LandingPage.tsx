@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
+import { PublicShell } from '../components/PublicShell'
 
 const features = [
   {
@@ -7,32 +8,32 @@ const features = [
     description: 'Arraste e solte tarefas entre colunas com interface fluida e responsiva.',
   },
   {
-    title: 'Colaboração em tempo real',
-    description: 'Veja as mudanças instantaneamente e trabalhe junto com seu time.',
+    title: 'Sincronização automática',
+    description: 'Atualização periódica do quadro para manter o time alinhado sem recarregar a página.',
   },
   {
     title: 'Gestão de prazos',
     description: 'Defina datas limite e prioridades para manter o foco no que importa.',
   },
   {
-    title: 'Segurança enterprise',
-    description: 'Dados criptografados e controle de acesso por função em cada organização.',
+    title: 'Permissões por função',
+    description: 'Gestor e colaboradores com regras claras de acesso e favoritos controlados.',
   },
   {
-    title: 'Convites simplificados',
-    description: 'Adicione colaboradores por e-mail com um clique e acesso seguro.',
+    title: 'Convites por link',
+    description: 'Convide colaboradores com link seguro — envio por e-mail em breve.',
   },
   {
-    title: 'Interface clara e acessível',
-    description: 'Experiência visual consistente para foco total no trabalho.',
+    title: 'Modo escuro',
+    description: 'Interface confortável em ambientes claros ou escuros.',
   },
 ]
 
 const stats = [
-  { value: '95%', label: 'Aumento de produtividade' },
-  { value: '10k+', label: 'Equipes ativas' },
-  { value: '99.9%', label: 'Uptime garantido' },
-  { value: '8h', label: 'Tempo economizado/semana' },
+  { value: 'Kanban', label: '3 colunas operacionais' },
+  { value: 'Multi', label: 'Quadros por organização' },
+  { value: 'PWA', label: 'Instalável no navegador' },
+  { value: 'Neon', label: 'PostgreSQL em produção' },
 ]
 
 const steps = [
@@ -44,7 +45,7 @@ const steps = [
   {
     number: '2',
     title: 'Convide seu time',
-    description: 'Adicione colaboradores por e-mail e defina permissões.',
+    description: 'Gere convites e compartilhe o link com cada colaborador.',
   },
   {
     number: '3',
@@ -55,66 +56,64 @@ const steps = [
 
 const testimonials = [
   {
-    quote: 'SprintPro transformou como nossa equipe trabalha. A interface é limpa e intuitiva.',
-    name: 'Maria Costa',
-    role: 'CTO, TechCorp',
+    quote: 'Kanban simples e direto — nosso time usa todos os dias sem fricção.',
+    name: 'Equipe de operações',
+    role: 'MVP SprintPro',
   },
   {
-    quote: 'Finalmente encontramos uma ferramenta que toda a equipe realmente usa diariamente.',
-    name: 'João Silva',
-    role: 'Product Manager, StartupX',
+    quote: 'Filtros, favoritos e histórico de concluídas resolvem o dia a dia.',
+    name: 'Gestores de projeto',
+    role: 'MVP SprintPro',
   },
   {
-    quote: 'A colaboração em tempo real é perfeita. Nosso time remoto nunca foi tão produtivo.',
-    name: 'Ana Santos',
-    role: 'Head of Design, CreativeHub',
+    quote: 'Deploy na Vercel com API e frontend no mesmo repositório.',
+    name: 'Time técnico',
+    role: 'MVP SprintPro',
   },
 ]
 
 const plans = [
-  { name: 'Starter', price: 'R$ 29', period: '/mês', items: ['Até 5 membros', '3 boards', 'Tarefas ilimitadas', 'Suporte por email'] },
   {
-    name: 'Pro',
-    price: 'R$ 79',
-    period: '/mês',
+    name: 'MVP',
+    price: 'Grátis',
+    period: '',
     highlight: true,
-    items: ['Até 20 membros', 'Boards ilimitados', 'Integrações', 'Suporte prioritário'],
+    items: ['Organização ilimitada no seu workspace', 'Múltiplos quadros Kanban', 'Tarefas, notas e categorias', 'Relatórios e dashboard'],
   },
-  { name: 'Business', price: 'R$ 199', period: '/mês', items: ['Membros ilimitados', 'Tudo do Pro', 'SSO e SAML', 'Suporte 24/7'] },
 ]
 
 const faqs = [
   {
-    question: 'Como funciona o período de teste?',
-    answer: 'Oferecemos 14 dias grátis em qualquer plano, sem necessidade de cartão de crédito.',
+    question: 'Preciso de cartão de crédito?',
+    answer: 'Não. O SprintPro está em fase MVP e pode ser usado gratuitamente.',
   },
   {
-    question: 'Posso cancelar a qualquer momento?',
-    answer: 'Sim. Não há contratos de longo prazo. Cancele quando quiser.',
+    question: 'Como funcionam os convites?',
+    answer: 'O gestor gera um convite e compartilha o link manualmente. O envio automático por e-mail será adicionado em breve.',
   },
   {
-    question: 'Como funciona o sistema de convites?',
-    answer: 'Gestores enviam convites por email. Colaboradores acessam por link único e seguro.',
+    question: 'Posso usar em produção?',
+    answer: 'Sim. O projeto inclui deploy na Vercel, banco Neon e autenticação JWT.',
   },
   {
-    question: 'Os dados são seguros?',
-    answer: 'Sim. Usamos criptografia de ponta a ponta e conformidade com LGPD.',
+    question: 'Há colaboração em tempo real?',
+    answer: 'O quadro atualiza automaticamente por polling. WebSockets podem ser adicionados futuramente.',
   },
 ]
 
 export function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#f3f4f7]">
+    <PublicShell className="bg-[#f3f4f7] dark:bg-slate-950">
       <AppHeader />
-      <section className="border-b border-slate-200/60 px-4 py-18 text-center">
+      <section className="border-b border-slate-200/60 px-4 py-18 text-center dark:border-slate-800">
         <div className="mx-auto max-w-4xl">
-          <h1 className="text-5xl font-extrabold tracking-tight text-slate-800 md:text-6xl">
+          <h1 className="text-5xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100 md:text-6xl">
             Gestão de tarefas que
             <br />
             acelera seu time
           </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-base text-slate-600">
-            Organize projetos, colabore em tempo real e aumente a produtividade com o método Kanban mais intuitivo do mercado.
+          <p className="mx-auto mt-5 max-w-2xl text-base text-slate-600 dark:text-slate-400">
+            Organize projetos com Kanban, filtros, relatórios e permissões — MVP pronto para operar seu time.
           </p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <Link
@@ -286,6 +285,6 @@ export function LandingPage() {
           © 2026 SprintPro. Todos os direitos reservados.
         </p>
       </footer>
-    </div>
+    </PublicShell>
   )
 }

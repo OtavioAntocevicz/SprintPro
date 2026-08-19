@@ -14,6 +14,14 @@ export async function updateBoardFeatured(boardId: string, featured: boolean) {
   return apiFetchJson<Board>('PATCH', `/api/boards/${boardId}/featured`, { featured })
 }
 
+export async function updateBoard(boardId: string, name: string) {
+  return apiFetchJson<Board>('PATCH', `/api/boards/${boardId}`, { name })
+}
+
+export async function deleteBoard(boardId: string) {
+  return apiFetchJson<void>('DELETE', `/api/boards/${boardId}`)
+}
+
 export async function fetchBoardTasks(organizationId: string, boardId: string) {
   void organizationId
   return apiFetchJson<Task[]>('GET', `/api/boards/${boardId}/tasks`)
@@ -117,6 +125,10 @@ export async function fetchInvites() {
 export async function createInvite(params: { email: string; organizationId: string; role: UserRole }) {
   void params.organizationId
   return apiFetchJson<Invite>('POST', '/api/invites', { email: params.email, role: params.role })
+}
+
+export async function revokeInvite(inviteId: string) {
+  return apiFetchJson<void>('DELETE', `/api/invites/${inviteId}`)
 }
 
 export async function updateMemberFavoritePermission(memberId: string, canFavorite: boolean) {
