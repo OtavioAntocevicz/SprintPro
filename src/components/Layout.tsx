@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useOnlineUsers } from '../hooks/useOnlineUsers'
 import { logout } from '../services/auth'
 import { useAuthStore } from '../store/authStore'
@@ -16,6 +16,7 @@ import {
   IconReports,
   IconSettings,
 } from './AppIcons'
+import { BrandLogo } from './BrandLogo'
 
 type Props = {
   searchPlaceholder?: string
@@ -101,12 +102,18 @@ export function Layout({ searchPlaceholder = 'Buscar tarefas...', showSearch = t
             className={`flex shrink-0 ${collapsed ? 'flex-col items-center gap-2' : 'items-start justify-between gap-2'}`}
           >
             {collapsed ? (
-              <p className="text-sm font-bold text-violet-600 dark:text-violet-400" title="SprintPro">
-                SP
-              </p>
+              <Link to="/dashboard" title="SprintPro" className="block">
+                <img
+                  src="/logo.svg"
+                  alt="SprintPro"
+                  className="mx-auto h-8 w-8 rounded-[22%] shadow-sm"
+                />
+              </Link>
             ) : (
               <div className="min-w-0 flex-1">
-                <p className="text-2xl font-bold text-violet-600 dark:text-violet-400">SprintPro</p>
+                <Link to="/dashboard" className="inline-flex">
+                  <BrandLogo size="lg" />
+                </Link>
                 <p className="truncate text-sm text-slate-500 dark:text-slate-400">
                   {appUser?.organizationName ?? 'Workspace'}
                 </p>

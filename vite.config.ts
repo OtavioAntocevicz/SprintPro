@@ -27,14 +27,14 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: '/favicon.svg',
-            sizes: 'any',
+            src: '/logo.svg',
+            sizes: '512x512',
             type: 'image/svg+xml',
             purpose: 'any',
           },
           {
             src: '/favicon.svg',
-            sizes: '512x512',
+            sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'maskable',
           },

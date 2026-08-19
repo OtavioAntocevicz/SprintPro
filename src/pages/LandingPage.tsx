@@ -156,8 +156,8 @@ export function LandingPage() {
               key={feature.title}
               className="rounded-xl border border-slate-200 bg-white p-5"
             >
-              <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
-                ✦
+              <div className="mb-3 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 p-1 dark:bg-violet-950">
+                <img src="/logo.svg" alt="" aria-hidden="true" className="h-full w-full rounded-md" />
               </div>
               <h3 className="font-semibold text-slate-900">{feature.title}</h3>
               <p className="mt-2 text-sm text-slate-600">{feature.description}</p>
@@ -266,7 +266,10 @@ export function LandingPage() {
       <footer className="border-t border-slate-200 bg-white px-4 py-8">
         <div className="mx-auto grid w-full max-w-6xl justify-items-center gap-8 text-center text-sm md:grid-cols-2">
           <div className="text-center">
-            <p className="font-bold text-slate-900">SprintPro</p>
+            <div className="mx-auto mb-3 flex w-fit items-center gap-2">
+              <img src="/logo.svg" alt="" aria-hidden="true" className="h-9 w-9 rounded-[22%] shadow-sm" />
+              <p className="font-bold text-slate-900">SprintPro</p>
+            </div>
             <p className="mt-2 text-slate-600">Gestão de tarefas moderna para times de alta performance.</p>
           </div>
           <div className="text-center">
