@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ErrorBlock, LoadingBlock } from '../components/AsyncState'
 import { BoardTaskFilters } from '../components/BoardTaskFilters'
 import { KanbanSection } from '../components/KanbanSection'
 import { Layout } from '../components/Layout'
 import { useBoards } from '../hooks/useBoards'
 import { useTasks } from '../hooks/useTasks'
-import { createBoard, createTask, fetchCategories, fetchMembers } from '../services/apiData'
+import {
+  createBoard,
+  createTask,
+  deleteBoard,
+  fetchCategories,
+  fetchMembers,
+  updateBoard,
+  updateBoardFeatured,
+} from '../services/apiData'
 import { useAuthStore } from '../store/authStore'
 import { useHeaderSearchStore } from '../store/headerSearchStore'
 import type { AppUser, TaskCategory } from '../types'
@@ -15,12 +25,27 @@ import { taskPhase } from '../utils/taskStatus'
 const OTHER_CATEGORY = '__other__'
 
 export function BoardsPage() {
+  const { boardId: routeBoardId } = useParams()
+  const navigate = useNavigate()
   const appUser = useAuthStore((state) => state.appUser)
+  const isOwner = appUser?.role === 'owner'
   const canCreateTask = Boolean(appUser?.organizationId)
-  const boards = useBoards(appUser?.organizationId)
+  const { boards, loading: boardsLoading, error: boardsError, refetch: refetchBoards } = useBoards(
+    appUser?.organizationId,
+  )
   const [pendingBoardId, setPendingBoardId] = useState<string>()
-  const boardId = boards[0]?.id ?? pendingBoardId
-  const taskState = useTasks(appUser?.organizationId, boardId)
+  const activeBoardId =
+    routeBoardId && boards.some((b) => b.id === routeBoardId)
+      ? routeBoardId
+      : boards[0]?.id ?? pendingBoardId
+  const taskState = useTasks(appUser?.organizationId, activeBoardId)
+  const activeBoard = boards.find((b) => b.id === activeBoardId)
+
+  useEffect(() => {
+    if (boardsLoading || !boards.length) return
+    if (routeBoardId && boards.some((b) => b.id === routeBoardId)) return
+    navigate(`/boards/${boards[0].id}`, { replace: true })
+  }, [boards, boardsLoading, routeBoardId, navigate])
 
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -175,11 +200,13 @@ export function BoardsPage() {
 
     try {
       setIsSubmitting(true)
-      let activeBoardId = boardId
-      if (!activeBoardId) {
+      let activeBoardIdForTask = activeBoardId
+      if (!activeBoardIdForTask) {
         const created = await createBoard('Quadro principal', appUser.organizationId)
-        activeBoardId = created.id
+        activeBoardIdForTask = created.id
         setPendingBoardId(created.id)
+        await refetchBoards()
+        navigate(`/boards/${created.id}`)
       }
       const assignee = members.find((m) => m.id === assigneeId)
       await createTask({
@@ -189,7 +216,7 @@ export function BoardsPage() {
         priority,
         dueDate: parsedDueDate || undefined,
         assigneeName: assignee?.fullName,
-        boardId: activeBoardId,
+        boardId: activeBoardIdForTask,
         organizationId: appUser.organizationId,
         assignedTo: assigneeId,
       })
@@ -209,6 +236,54 @@ export function BoardsPage() {
     }
   }
 
+  async function onCreateBoard() {
+    if (!appUser?.organizationId) return
+    const name = window.prompt('Nome do novo quadro:', 'Novo quadro')
+    if (!name?.trim()) return
+    try {
+      const created = await createBoard(name.trim(), appUser.organizationId)
+      await refetchBoards()
+      navigate(`/boards/${created.id}`)
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Falha ao criar quadro.')
+    }
+  }
+
+  async function onRenameBoard() {
+    if (!activeBoardId || !activeBoard) return
+    const name = window.prompt('Renomear quadro:', activeBoard.name)
+    if (!name?.trim() || name.trim() === activeBoard.name) return
+    try {
+      await updateBoard(activeBoardId, name.trim())
+      await refetchBoards()
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Falha ao renomear quadro.')
+    }
+  }
+
+  async function onDeleteBoard() {
+    if (!activeBoardId || !isOwner) return
+    const ok = window.confirm('Excluir este quadro e todas as tarefas nele?')
+    if (!ok) return
+    try {
+      await deleteBoard(activeBoardId)
+      await refetchBoards()
+      navigate('/boards')
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Falha ao excluir quadro.')
+    }
+  }
+
+  async function onToggleFeatured() {
+    if (!activeBoardId || !activeBoard || !isOwner) return
+    try {
+      await updateBoardFeatured(activeBoardId, !activeBoard.featured)
+      await refetchBoards()
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Falha ao atualizar destaque.')
+    }
+  }
+
   return (
     <Layout searchPlaceholder="Buscar tarefas...">
       <section className="mb-5">
@@ -225,13 +300,75 @@ export function BoardsPage() {
               resetAssigneeField()
               setShowTaskModal(true)
             }}
-            disabled={!canCreateTask}
+            disabled={!canCreateTask || !activeBoardId}
             className="rounded-lg bg-violet-600 px-4 py-2 font-medium text-white disabled:opacity-50"
           >
             + Nova Tarefa
           </button>
         </div>
       </section>
+
+      {boardsError && (
+        <ErrorBlock message={boardsError} onRetry={() => void refetchBoards()} className="mb-4" />
+      )}
+
+      {boardsLoading ? (
+        <LoadingBlock label="Carregando quadros..." className="mb-5" />
+      ) : (
+        <section className="mb-5 flex flex-wrap items-center gap-2">
+          {boards.map((board) => (
+            <button
+              key={board.id}
+              type="button"
+              onClick={() => navigate(`/boards/${board.id}`)}
+              className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                board.id === activeBoardId
+                  ? 'border-violet-400 bg-violet-50 text-violet-800 dark:border-violet-600 dark:bg-violet-950 dark:text-violet-200'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+              }`}
+            >
+              {board.name}
+              {board.featured ? ' ★' : ''}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => void onCreateBoard()}
+            className="rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:border-violet-400 hover:text-violet-700 dark:border-slate-600 dark:text-slate-400"
+          >
+            + Novo quadro
+          </button>
+          {activeBoard && (
+            <div className="ml-auto flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void onRenameBoard()}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 dark:border-slate-700 dark:text-slate-300"
+              >
+                Renomear
+              </button>
+              {isOwner && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void onToggleFeatured()}
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                  >
+                    {activeBoard.featured ? 'Remover destaque' : 'Destacar no dashboard'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void onDeleteBoard()}
+                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 dark:border-red-900 dark:text-red-400"
+                  >
+                    Excluir quadro
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       <BoardTaskFilters
         filters={taskFilters}
@@ -242,15 +379,23 @@ export function BoardsPage() {
         onChange={onFiltersChange}
       />
 
-      <KanbanSection
-        tasks={filteredGrouped}
-        allTasks={filteredTasks}
-        members={members}
-        categories={categories}
-        onLocalPatch={taskState.patchTaskLocal}
-        onLocalRemove={taskState.removeTaskLocal}
-        onRefetch={taskState.refetch}
-      />
+      {taskState.error && (
+        <ErrorBlock message={taskState.error} onRetry={() => void taskState.refetch()} className="mb-4" />
+      )}
+
+      {taskState.loading ? (
+        <LoadingBlock label="Carregando tarefas..." />
+      ) : (
+        <KanbanSection
+          tasks={filteredGrouped}
+          allTasks={filteredTasks}
+          members={members}
+          categories={categories}
+          onLocalPatch={taskState.patchTaskLocal}
+          onLocalRemove={taskState.removeTaskLocal}
+          onRefetch={taskState.refetch}
+        />
+      )}
 
       {showTaskModal && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 dark:bg-black/60">

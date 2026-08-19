@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { fetchOrganizationTasks } from '../services/apiData'
-import { useMembersCount } from './useMembersCount'
-import { pollIntervalForMemberCount } from '../utils/pollInterval'
+import { useMemo } from 'react'
+import { useOrganizationTasks } from './useOrganizationTasks'
 import type { Task } from '../types'
 
 function startOfToday() {
@@ -17,30 +15,9 @@ function parseDue(task: Task) {
 }
 
 export function useOrgTaskStats(organizationId?: string) {
-  const [tasks, setTasks] = useState<Task[]>([])
-  const memberCount = useMembersCount(organizationId)
-  const pollMs = pollIntervalForMemberCount(memberCount)
+  const { tasks, loading, error, refetch, memberCount } = useOrganizationTasks(organizationId)
 
-  useEffect(() => {
-    if (!organizationId) return
-    let cancelled = false
-    async function load() {
-      try {
-        const data = await fetchOrganizationTasks()
-        if (!cancelled) setTasks(data)
-      } catch (e) {
-        console.error(e)
-      }
-    }
-    void load()
-    const id = window.setInterval(() => void load(), pollMs)
-    return () => {
-      cancelled = true
-      window.clearInterval(id)
-    }
-  }, [organizationId, pollMs])
-
-  return useMemo(() => {
+  const stats = useMemo(() => {
     const today = startOfToday()
     const inSevenDays = new Date(today)
     inSevenDays.setDate(inSevenDays.getDate() + 7)
@@ -70,4 +47,6 @@ export function useOrgTaskStats(organizationId?: string) {
       memberCount,
     }
   }, [tasks, memberCount])
+
+  return { ...stats, loading, error, refetch }
 }

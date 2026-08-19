@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
+import { PublicShell } from '../components/PublicShell'
 import { loginOwner, registerOwner } from '../services/auth'
 
 type AuthMode = 'login' | 'signup'
@@ -68,12 +69,12 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <PublicShell>
       <AppHeader />
       <div className="grid place-items-center px-4 py-10">
         <form
           onSubmit={onSubmit}
-          className="w-full max-w-md rounded-xl bg-white p-6 shadow-sm"
+          className="w-full max-w-md rounded-xl bg-white p-6 shadow-sm dark:border dark:border-slate-700 dark:bg-slate-900"
         >
         <div className="mb-4 inline-flex rounded-lg bg-slate-100 p-1">
           <button
@@ -199,6 +200,6 @@ export function LoginPage() {
         </Link>
         </form>
       </div>
-    </div>
+    </PublicShell>
   )
 }

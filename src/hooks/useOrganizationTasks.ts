@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchBoards } from '../services/apiData'
+import { fetchOrganizationTasks } from '../services/apiData'
 import { useMembersCount } from './useMembersCount'
 import { pollIntervalForMemberCount } from '../utils/pollInterval'
-import type { Board } from '../types'
+import type { Task } from '../types'
 
-export function useBoards(organizationId?: string) {
-  const [boards, setBoards] = useState<Board[]>([])
+export function useOrganizationTasks(organizationId?: string) {
+  const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const memberCount = useMembersCount(organizationId)
@@ -15,10 +15,10 @@ export function useBoards(organizationId?: string) {
     if (!organizationId) return
     setError('')
     try {
-      const data = await fetchBoards()
-      setBoards(data)
+      const data = await fetchOrganizationTasks()
+      setTasks(data)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Não foi possível carregar os quadros.')
+      setError(e instanceof Error ? e.message : 'Não foi possível carregar as tarefas.')
       throw e
     } finally {
       setLoading(false)
@@ -27,21 +27,21 @@ export function useBoards(organizationId?: string) {
 
   useEffect(() => {
     if (!organizationId) {
-      setBoards([])
+      setTasks([])
       setLoading(false)
       return
     }
     let cancelled = false
     async function load() {
       try {
-        const data = await fetchBoards()
+        const data = await fetchOrganizationTasks()
         if (!cancelled) {
-          setBoards(data)
+          setTasks(data)
           setError('')
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : 'Não foi possível carregar os quadros.')
+          setError(e instanceof Error ? e.message : 'Não foi possível carregar as tarefas.')
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -56,5 +56,5 @@ export function useBoards(organizationId?: string) {
     }
   }, [organizationId, pollMs])
 
-  return { boards, loading, error, refetch }
+  return { tasks, loading, error, refetch, memberCount }
 }

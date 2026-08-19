@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ErrorBlock, LoadingBlock } from '../components/AsyncState'
 import { Layout } from '../components/Layout'
 import { useMembersCount } from '../hooks/useMembersCount'
 import { fetchMembers, fetchOrganizationTasks } from '../services/apiData'
@@ -15,24 +16,46 @@ export function ReportsPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [members, setMembers] = useState<AppUser[]>([])
   const [period, setPeriod] = useState<Period>('30d')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [nowTs, setNowTs] = useState(() => Date.now())
+
+  const load = async () => {
+    if (!appUser?.organizationId) return
+    setError('')
+    try {
+      const [t, m] = await Promise.all([fetchOrganizationTasks(), fetchMembers()])
+      setTasks(t)
+      setMembers(m)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível carregar os relatórios.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (!appUser?.organizationId) return
     let cancelled = false
-    async function load() {
+    async function run() {
       try {
         const [t, m] = await Promise.all([fetchOrganizationTasks(), fetchMembers()])
         if (!cancelled) {
           setTasks(t)
           setMembers(m)
+          setError('')
         }
       } catch (e) {
-        console.error(e)
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Não foi possível carregar os relatórios.')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }
-    void load()
-    const id = window.setInterval(() => void load(), pollMs)
+    setLoading(true)
+    void run()
+    const id = window.setInterval(() => void run(), pollMs)
     return () => {
       cancelled = true
       window.clearInterval(id)
@@ -49,8 +72,13 @@ export function ReportsPage() {
     const days = period === '7d' ? 7 : period === '30d' ? 30 : 90
     const from = nowTs - days * 24 * 60 * 60 * 1000
     return tasks.filter((t) => {
-      const ts = new Date(t.createdAt).getTime()
-      return Number.isFinite(ts) && ts >= from
+      const reference =
+        t.status === 'done'
+          ? t.completedAt
+            ? new Date(t.completedAt).getTime()
+            : new Date(t.createdAt).getTime()
+          : new Date(t.createdAt).getTime()
+      return Number.isFinite(reference) && reference >= from
     })
   }, [tasks, period, nowTs])
 
@@ -77,12 +105,14 @@ export function ReportsPage() {
   }, [filteredTasks])
 
   return (
-    <Layout searchPlaceholder="Relatórios">
+    <Layout showSearch={false}>
       <section className="mb-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-4xl font-semibold">Relatórios</h1>
-            <p className="text-slate-500 dark:text-slate-400">Conclusão por membro e tarefas por responsável.</p>
+            <p className="text-slate-500 dark:text-slate-400">
+              Conclusões usam a data de finalização; demais status usam a data de criação.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-slate-500 dark:text-slate-400">Período:</span>
@@ -100,6 +130,12 @@ export function ReportsPage() {
         </div>
       </section>
 
+      {error && <ErrorBlock message={error} onRetry={() => void load()} className="mb-4" />}
+
+      {loading ? (
+        <LoadingBlock label="Carregando relatórios..." />
+      ) : (
+        <>
       <section className="grid gap-4 md:grid-cols-4">
         <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
           <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Total</p>
@@ -138,6 +174,8 @@ export function ReportsPage() {
           {byMember.length === 0 && <p className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Sem membros para exibir.</p>}
         </div>
       </section>
+        </>
+      )}
     </Layout>
   )
 }

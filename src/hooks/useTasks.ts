@@ -24,6 +24,8 @@ export type TaskLocalPatch = Partial<
 
 export function useTasks(organizationId?: string, boardId?: string) {
   const [tasks, setTasks] = useState<Task[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const memberCount = useMembersCount(organizationId)
   const pollMs = pollIntervalForMemberCount(memberCount)
 
@@ -37,23 +39,43 @@ export function useTasks(organizationId?: string, boardId?: string) {
 
   const refetch = useCallback(async () => {
     if (!organizationId || !boardId) return
-    const data = await fetchBoardTasks(organizationId, boardId)
-    setTasks(data)
+    setError('')
+    try {
+      const data = await fetchBoardTasks(organizationId, boardId)
+      setTasks(data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível carregar as tarefas.')
+      throw e
+    } finally {
+      setLoading(false)
+    }
   }, [organizationId, boardId])
 
   useEffect(() => {
-    if (!organizationId || !boardId) return
+    if (!organizationId || !boardId) {
+      setTasks([])
+      setLoading(false)
+      return
+    }
     const oid = organizationId
     const bid = boardId
     let cancelled = false
     async function load() {
       try {
         const data = await fetchBoardTasks(oid, bid)
-        if (!cancelled) setTasks(data)
+        if (!cancelled) {
+          setTasks(data)
+          setError('')
+        }
       } catch (e) {
-        console.error(e)
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Não foi possível carregar as tarefas.')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }
+    setLoading(true)
     void load()
     const id = window.setInterval(() => void load(), pollMs)
     return () => {
@@ -69,5 +91,5 @@ export function useTasks(organizationId?: string, boardId?: string) {
     return { todo, doing, done, all: tasks }
   }, [tasks])
 
-  return { ...grouped, patchTaskLocal, removeTaskLocal, refetch }
+  return { ...grouped, loading, error, patchTaskLocal, removeTaskLocal, refetch }
 }

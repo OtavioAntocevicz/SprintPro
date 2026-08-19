@@ -40,6 +40,7 @@ function parseDateFromPtBr(value: string) {
 }
 
 export function TaskEditModal({ task, open, members, categories, onClose, onSaved }: Props) {
+  const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [categorySelect, setCategorySelect] = useState(OTHER_CATEGORY)
   const [customLabel, setCustomLabel] = useState('')
@@ -51,6 +52,7 @@ export function TaskEditModal({ task, open, members, categories, onClose, onSave
 
   useEffect(() => {
     if (!open || !task) return
+    setTitle(task.title ?? '')
     setDescription(task.description ?? '')
     const label = task.label?.trim() ?? ''
     const known = categories.find((c) => c.name === label)
@@ -74,7 +76,6 @@ export function TaskEditModal({ task, open, members, categories, onClose, onSave
 
   const showCustomLabel = categorySelect === OTHER_CATEGORY
   const taskId = task.id
-  const taskTitle = task.title
 
   function onDueDateInputChange(value: string) {
     const digits = value.replace(/\D/g, '').slice(0, 8)
@@ -103,6 +104,10 @@ export function TaskEditModal({ task, open, members, categories, onClose, onSave
       setError('Selecione um responsável.')
       return
     }
+    if (!title.trim()) {
+      setError('Informe um título.')
+      return
+    }
     const parsedDue = dueDateInput ? parseDateFromPtBr(dueDateInput) : null
     if (dueDateInput && parsedDue === undefined) {
       setError('Data inválida. Use o formato dd/mm/aaaa.')
@@ -112,6 +117,7 @@ export function TaskEditModal({ task, open, members, categories, onClose, onSave
     setSaving(true)
     try {
       const updated = await updateTask(taskId, {
+        title: title.trim(),
         description: description.trim(),
         label: resolvedLabel,
         priority,
@@ -134,9 +140,8 @@ export function TaskEditModal({ task, open, members, categories, onClose, onSave
         <div className="mb-5 flex items-start justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Editar tarefa</h2>
-            <p className="mt-1 text-sm font-medium text-slate-700 dark:text-slate-300">{taskTitle}</p>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              O título não pode ser alterado. Atualize os demais campos e salve.
+              Atualize os campos e salve as alterações.
             </p>
           </div>
           <button
@@ -149,6 +154,15 @@ export function TaskEditModal({ task, open, members, categories, onClose, onSave
         </div>
 
         <form onSubmit={onSubmit} className="grid gap-3 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Título</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+            />
+          </div>
           <div className="md:col-span-2">
             <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Descrição</label>
             <textarea

@@ -203,7 +203,7 @@ export function SettingsPage() {
   }
 
   return (
-    <Layout searchPlaceholder="Configurações">
+    <Layout showSearch={false}>
       <section className="mb-6">
         <h1 className="text-4xl font-semibold">Configurações</h1>
         <p className="text-slate-500 dark:text-slate-400">Gerencie perfil, organização, equipe e segurança da conta.</p>

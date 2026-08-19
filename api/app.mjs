@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { Pool, neonConfig } from '@neondatabase/serverless'
 import jwt from 'jsonwebtoken'
 import WebSocket from 'ws'
+import { isStrongPassword } from './lib/validate.mjs'
 
 neonConfig.webSocketConstructor = WebSocket
 
@@ -152,16 +153,38 @@ function signToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' })
 }
 
+function buildAuthToken(userRow) {
+  return signToken({
+    sub: userRow.id,
+    email: userRow.email,
+    orgId: String(userRow.organization_id),
+    role: userRow.role,
+    tv: Number(userRow.token_version ?? 0),
+  })
+}
+
 function signPasswordResetToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' })
 }
 
-function isStrongPassword(password) {
-  if (typeof password !== 'string') return false
-  if (password.length < 8) return false
-  const hasLetter = /[A-Za-z]/.test(password)
-  const hasNumber = /\d/.test(password)
-  return hasLetter && hasNumber
+async function authRequired(req, res, next) {
+  const h = req.headers.authorization
+  if (!h?.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Não autenticado' })
+  }
+  try {
+    const payload = jwt.verify(h.slice(7), JWT_SECRET)
+    const { rows } = await pool.query('SELECT token_version FROM users WHERE id = $1', [payload.sub])
+    const current = Number(rows[0]?.token_version ?? 0)
+    const tokenTv = Number(payload.tv ?? 0)
+    if (!rows[0] || current !== tokenTv) {
+      return res.status(401).json({ error: 'Sessão expirada. Faça login novamente.' })
+    }
+    req.user = payload
+    next()
+  } catch {
+    return res.status(401).json({ error: 'Sessão inválida' })
+  }
 }
 
 /** Em produção respostas 500 genéricas; em dev o cliente vê a mensagem (ex. coluna em falta no SQL). */
@@ -170,19 +193,6 @@ function publicErrorMessage(_generic, e) {
     return _generic
   }
   return e && typeof e === 'object' && 'message' in e ? String(/** @type {Error} */ (e).message) : _generic
-}
-
-function authRequired(req, res, next) {
-  const h = req.headers.authorization
-  if (!h?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Não autenticado' })
-  }
-  try {
-    req.user = jwt.verify(h.slice(7), JWT_SECRET)
-    next()
-  } catch {
-    return res.status(401).json({ error: 'Sessão inválida' })
-  }
 }
 
 function requireOrgMatch(req, res, orgId) {
@@ -324,11 +334,12 @@ app.post('/api/auth/register', authRateLimit, async (req, res) => {
       [userId, name, em, organizationId, hash],
     )
     await client.query('COMMIT')
-    const token = signToken({
-      sub: userId,
+    const token = buildAuthToken({
+      id: userId,
       email: em,
-      orgId: String(organizationId),
+      organization_id: organizationId,
       role: 'owner',
+      token_version: 0,
     })
     const user = {
       id: userId,
@@ -371,12 +382,7 @@ app.post('/api/auth/login', authRateLimit, async (req, res) => {
     }
     const ok = await bcrypt.compare(password, row.password_hash)
     if (!ok) return res.status(401).json({ error: 'Credenciais inválidas.' })
-    const token = signToken({
-      sub: row.id,
-      email: row.email,
-      orgId: String(row.organization_id),
-      role: row.role,
-    })
+    const token = buildAuthToken(row)
     const u = mapUser(row)
     const user = {
       ...u,
@@ -411,10 +417,13 @@ app.post('/api/auth/forgot-password', authRateLimit, async (req, res) => {
     if (!user) {
       return res.json(genericResponse)
     }
+    const jti = randomUUID()
+    await pool.query('UPDATE users SET password_reset_jti = $1 WHERE id = $2', [jti, user.id])
     const token = signPasswordResetToken({
       sub: user.id,
       email: user.email,
       type: 'password_reset',
+      jti,
     })
     const appUrl = process.env.APP_URL || (IS_PROD ? '' : 'http://localhost:5173')
     const resetLink = appUrl
@@ -453,12 +462,24 @@ app.post('/api/auth/reset-password', authRateLimit, async (req, res) => {
     }
     const userId = String(payload.sub ?? '')
     const email = String(payload.email ?? '')
-    if (!userId || !email) {
+    const jti = String(payload.jti ?? '')
+    if (!userId || !email || !jti) {
       return res.status(400).json({ error: 'Token inválido.' })
+    }
+    const existing = await pool.query(
+      'SELECT password_reset_jti FROM users WHERE id = $1 AND LOWER(email) = LOWER($2)',
+      [userId, email],
+    )
+    if (!existing.rowCount || existing.rows[0].password_reset_jti !== jti) {
+      return res.status(400).json({ error: 'Link já utilizado ou inválido.' })
     }
     const hash = await bcrypt.hash(newPassword, 10)
     const { rowCount } = await pool.query(
-      'UPDATE users SET password_hash = $1 WHERE id = $2 AND LOWER(email) = LOWER($3)',
+      `UPDATE users
+       SET password_hash = $1,
+           password_reset_jti = NULL,
+           token_version = COALESCE(token_version, 0) + 1
+       WHERE id = $2 AND LOWER(email) = LOWER($3)`,
       [hash, userId, email],
     )
     if (!rowCount) {
@@ -515,11 +536,12 @@ app.post('/api/auth/register-invite', authRateLimit, async (req, res) => {
     )
     await client.query(`UPDATE invites SET status = 'accepted' WHERE id = $1`, [invRow.id])
     await client.query('COMMIT')
-    const token = signToken({
-      sub: userId,
+    const token = buildAuthToken({
+      id: userId,
       email: em,
-      orgId: String(invRow.organization_id),
+      organization_id: invRow.organization_id,
       role: invRow.role,
+      token_version: 0,
     })
     const user = {
       id: userId,
@@ -641,7 +663,10 @@ app.post('/api/settings/change-password', authRequired, async (req, res) => {
     }
     const hash = await bcrypt.hash(newPassword, 10)
     await pool.query(
-      'UPDATE users SET password_hash = $1 WHERE id = $2 AND organization_id = $3',
+      `UPDATE users
+       SET password_hash = $1,
+           token_version = COALESCE(token_version, 0) + 1
+       WHERE id = $2 AND organization_id = $3`,
       [hash, req.user.sub, req.user.orgId],
     )
     return res.json({ ok: true })
@@ -733,6 +758,50 @@ app.patch('/api/boards/:id/featured', authRequired, async (req, res) => {
   } catch (e) {
     console.error(e)
     return res.status(500).json({ error: 'Erro ao atualizar quadro.' })
+  }
+})
+
+app.patch('/api/boards/:id', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  const boardId = req.params.id
+  const name = String(req.body?.name ?? '').trim()
+  if (!name) return res.status(400).json({ error: 'Nome do quadro é obrigatório.' })
+  try {
+    const { rows } = await pool.query(
+      'UPDATE boards SET name = $1 WHERE id = $2 AND organization_id = $3 RETURNING *',
+      [name, boardId, req.user.orgId],
+    )
+    if (!rows[0]) return res.status(404).json({ error: 'Quadro não encontrado.' })
+    return res.json(mapBoard(rows[0]))
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao renomear quadro.' })
+  }
+})
+
+app.delete('/api/boards/:id', authRequired, async (req, res) => {
+  if (req.user.role !== 'owner') {
+    return res.status(403).json({ error: 'Apenas o gestor pode excluir quadros.' })
+  }
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  const boardId = req.params.id
+  try {
+    const count = await pool.query(
+      'SELECT COUNT(*)::int AS total FROM boards WHERE organization_id = $1',
+      [req.user.orgId],
+    )
+    if (Number(count.rows[0]?.total ?? 0) <= 1) {
+      return res.status(400).json({ error: 'Não é possível excluir o único quadro da organização.' })
+    }
+    const { rowCount } = await pool.query(
+      'DELETE FROM boards WHERE id = $1 AND organization_id = $2',
+      [boardId, req.user.orgId],
+    )
+    if (!rowCount) return res.status(404).json({ error: 'Quadro não encontrado.' })
+    return res.status(204).send()
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao excluir quadro.' })
   }
 })
 
@@ -1322,6 +1391,26 @@ app.post('/api/invites', authRequired, async (req, res) => {
     }
     console.error(e)
     return res.status(500).json({ error: 'Erro ao criar convite.' })
+  }
+})
+
+app.delete('/api/invites/:id', authRequired, async (req, res) => {
+  if (req.user.role !== 'owner') {
+    return res.status(403).json({ error: 'Apenas o gestor pode revogar convites.' })
+  }
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  const inviteId = req.params.id
+  try {
+    const { rowCount } = await pool.query(
+      `DELETE FROM invites
+       WHERE id = $1 AND organization_id = $2 AND status = 'pending'`,
+      [inviteId, req.user.orgId],
+    )
+    if (!rowCount) return res.status(404).json({ error: 'Convite pendente não encontrado.' })
+    return res.status(204).send()
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao revogar convite.' })
   }
 })
 

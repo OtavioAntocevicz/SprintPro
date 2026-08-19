@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { ErrorBlock, LoadingBlock } from '../components/AsyncState'
 import { Layout } from '../components/Layout'
 import {
   createInvite,
   deleteMember,
   fetchInvites,
   fetchMembers,
+  revokeInvite,
   updateMemberFavoritePermission,
 } from '../services/apiData'
 import { useMembersCount } from '../hooks/useMembersCount'
 import { useAuthStore } from '../store/authStore'
+import { useHeaderSearchStore } from '../store/headerSearchStore'
 import { pollIntervalForMemberCount } from '../utils/pollInterval'
 import { userRoleLabel } from '../utils/userRoleLabel'
 import type { AppUser, Invite } from '../types'
@@ -21,25 +24,49 @@ export function MembersPage() {
   const [invites, setInvites] = useState<Invite[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
   const [feedback, setFeedback] = useState('')
+  const [feedbackTone, setFeedbackTone] = useState<'success' | 'error'>('success')
   const [inviting, setInviting] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [nowTs, setNowTs] = useState(() => Date.now())
+  const headerQuery = useHeaderSearchStore((s) => s.query)
+
+  const load = async () => {
+    if (!appUser?.organizationId) return
+    setError('')
+    try {
+      const [m, i] = await Promise.all([fetchMembers(), fetchInvites()])
+      setMembers(m)
+      setInvites(i)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível carregar os membros.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (!appUser?.organizationId) return
     let cancelled = false
-    async function load() {
+    async function run() {
       try {
         const [m, i] = await Promise.all([fetchMembers(), fetchInvites()])
         if (!cancelled) {
           setMembers(m)
           setInvites(i)
+          setError('')
         }
       } catch (e) {
-        console.error(e)
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Não foi possível carregar os membros.')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }
-    void load()
-    const id = window.setInterval(() => void load(), pollMs)
+    setLoading(true)
+    void run()
+    const id = window.setInterval(() => void run(), pollMs)
     return () => {
       cancelled = true
       window.clearInterval(id)
@@ -52,9 +79,35 @@ export function MembersPage() {
   }, [])
 
   const pendingInvites = useMemo(
-    () => invites.filter((invite) => invite.status === 'pending').length,
+    () => invites.filter((invite) => invite.status === 'pending'),
     [invites],
   )
+
+  const filteredMembers = useMemo(() => {
+    const q = headerQuery.trim().toLowerCase()
+    if (!q) return members
+    return members.filter(
+      (m) =>
+        m.fullName.toLowerCase().includes(q) ||
+        m.email.toLowerCase().includes(q) ||
+        userRoleLabel(m.role).toLowerCase().includes(q),
+    )
+  }, [members, headerQuery])
+
+  function inviteLink(inviteId: string) {
+    return `${window.location.origin}/accept-invite?invite=${inviteId}`
+  }
+
+  async function copyInviteLink(inviteId: string) {
+    try {
+      await navigator.clipboard.writeText(inviteLink(inviteId))
+      setFeedbackTone('success')
+      setFeedback('Link do convite copiado.')
+    } catch {
+      setFeedbackTone('error')
+      setFeedback('Não foi possível copiar o link.')
+    }
+  }
 
   async function onInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -68,10 +121,11 @@ export function MembersPage() {
         role: 'member',
       })
       setInviteEmail('')
-      setFeedback(
-        `Convite criado. Envie ao colaborador: ${window.location.origin}/accept-invite?invite=${inv.id} (o email deve ser o mesmo do convite)`,
-      )
+      setFeedbackTone('success')
+      setFeedback('Convite criado. Copie o link abaixo e envie ao colaborador.')
+      setInvites((prev) => [inv, ...prev])
     } catch (e) {
+      setFeedbackTone('error')
       setFeedback(e instanceof Error ? e.message : 'Falha ao criar convite.')
     } finally {
       setInviting(false)
@@ -99,6 +153,7 @@ export function MembersPage() {
     setMembers((prev) => prev.map((m) => (m.id === member.id ? { ...m, canFavorite: next } : m)))
     try {
       await updateMemberFavoritePermission(member.id, next)
+      setFeedbackTone('success')
       setFeedback(
         next
           ? `${member.fullName || member.email} agora pode favoritar tarefas.`
@@ -106,6 +161,7 @@ export function MembersPage() {
       )
     } catch (e) {
       setMembers((prev) => prev.map((m) => (m.id === member.id ? { ...m, canFavorite: member.canFavorite } : m)))
+      setFeedbackTone('error')
       setFeedback(e instanceof Error ? e.message : 'Falha ao atualizar permissão.')
     }
   }
@@ -118,15 +174,32 @@ export function MembersPage() {
     setMembers((prev) => prev.filter((m) => m.id !== member.id))
     try {
       await deleteMember(member.id)
+      setFeedbackTone('success')
       setFeedback(`${member.fullName || member.email} removido(a) da equipe.`)
     } catch (e) {
       setMembers(previous)
+      setFeedbackTone('error')
       setFeedback(e instanceof Error ? e.message : 'Falha ao remover membro.')
     }
   }
 
+  async function onRevokeInvite(inviteId: string) {
+    if (appUser?.role !== 'owner') return
+    const ok = window.confirm('Revogar este convite pendente?')
+    if (!ok) return
+    try {
+      await revokeInvite(inviteId)
+      setInvites((prev) => prev.filter((i) => i.id !== inviteId))
+      setFeedbackTone('success')
+      setFeedback('Convite revogado.')
+    } catch (e) {
+      setFeedbackTone('error')
+      setFeedback(e instanceof Error ? e.message : 'Falha ao revogar convite.')
+    }
+  }
+
   return (
-    <Layout searchPlaceholder="Pesquisar membros...">
+    <Layout searchPlaceholder="Buscar membros por nome ou e-mail...">
       <section className="mb-5 flex items-center justify-between">
         <h1 className="text-4xl font-semibold">Membros da Organização</h1>
         <form onSubmit={onInvite} className="flex items-center gap-2">
@@ -159,12 +232,54 @@ export function MembersPage() {
         </article>
         <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
           <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Convites pendentes</p>
-          <p className="mt-2 text-4xl font-bold">{pendingInvites}</p>
+          <p className="mt-2 text-4xl font-bold">{pendingInvites.length}</p>
         </article>
       </section>
 
-      {feedback && <p className="mt-3 text-sm text-emerald-600">{feedback}</p>}
+      {error && <ErrorBlock message={error} onRetry={() => void load()} className="mt-3" />}
+      {feedback && (
+        <p className={`mt-3 text-sm ${feedbackTone === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>
+          {feedback}
+        </p>
+      )}
 
+      {appUser?.role === 'owner' && pendingInvites.length > 0 && (
+        <section className="mt-5 rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+          <div className="border-b border-slate-200 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            Convites pendentes
+          </div>
+          <div>
+            {pendingInvites.map((invite) => (
+              <article key={invite.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 last:border-0 dark:border-slate-800">
+                <div>
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{invite.email}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{userRoleLabel(invite.role)}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void copyInviteLink(invite.id)}
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs dark:border-slate-700"
+                  >
+                    Copiar link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void onRevokeInvite(invite.id)}
+                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 dark:border-red-900 dark:text-red-400"
+                  >
+                    Revogar
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {loading ? (
+        <LoadingBlock label="Carregando membros..." className="mt-5" />
+      ) : (
       <section className="mt-5 rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         <div className="grid grid-cols-5 border-b border-slate-200 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
           <p>Pessoa</p>
@@ -174,7 +289,7 @@ export function MembersPage() {
           <p>Ações</p>
         </div>
         <div>
-          {members.map((member) => (
+          {filteredMembers.map((member) => (
             <article key={member.id} className="grid grid-cols-5 items-center px-5 py-4 text-sm text-slate-700 dark:text-slate-300">
               <div>
                 <p className="font-semibold text-slate-900 dark:text-slate-100">{member.fullName || member.email}</p>
@@ -220,6 +335,7 @@ export function MembersPage() {
           ))}
         </div>
       </section>
+      )}
     </Layout>
   )
 }
