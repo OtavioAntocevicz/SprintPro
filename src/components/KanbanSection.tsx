@@ -257,15 +257,21 @@ export function KanbanSection({
     if (taskPhase(t.status) === newStatus) return
 
     const previousCompletedAt = t.completedAt
+    const previousFavorite = t.favorite
     onLocalPatch(taskId, {
       status: newStatus,
       completedAt: newStatus === 'done' ? new Date().toISOString() : undefined,
+      ...(newStatus === 'done' ? { favorite: false } : {}),
     })
     void (async () => {
       try {
         await updateTaskStatus(taskId, newStatus)
       } catch (err) {
-        onLocalPatch(taskId, { status: t.status, completedAt: previousCompletedAt })
+        onLocalPatch(taskId, {
+          status: t.status,
+          completedAt: previousCompletedAt,
+          favorite: previousFavorite,
+        })
         setFeedback(err instanceof Error ? err.message : 'Não foi possível alterar a coluna. Tente de novo.')
       }
     })()
