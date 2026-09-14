@@ -996,6 +996,7 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
       values.push(normalizedStatus)
       if (normalizedStatus === 'done') {
         updates.push(`completed_at = now()`)
+        updates.push(`favorite = false`)
       } else {
         updates.push(`completed_at = NULL`)
       }
