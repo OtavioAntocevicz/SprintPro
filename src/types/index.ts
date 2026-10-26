@@ -55,6 +55,15 @@ export interface TaskCategory {
   createdAt: string
 }
 
+export interface AgentConnection {
+  id: string
+  label: string
+  active: boolean
+  createdAt: string
+  lastUsedAt?: string
+  revokedAt?: string
+}
+
 export interface Task {
   id: string
   title: string

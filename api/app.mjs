@@ -8,6 +8,12 @@ import { fileURLToPath } from 'node:url'
 import { Pool, neonConfig } from '@neondatabase/serverless'
 import jwt from 'jsonwebtoken'
 import WebSocket from 'ws'
+import {
+  createAgentConnection,
+  ensureAgentConnectionsSchema,
+  mapAgentConnection,
+  validateAgentConnection,
+} from './lib/agent-connections.mjs'
 import { isStrongPassword } from './lib/validate.mjs'
 
 neonConfig.webSocketConstructor = WebSocket
@@ -163,22 +169,6 @@ function buildAuthToken(userRow) {
   })
 }
 
-/** JWT longo para MCP / agentes (Cursor, GrokBot). */
-function buildAgentToken(userRow) {
-  return jwt.sign(
-    {
-      sub: userRow.id,
-      email: userRow.email,
-      orgId: String(userRow.organization_id),
-      role: userRow.role,
-      tv: Number(userRow.token_version ?? 0),
-      typ: 'agent',
-    },
-    JWT_SECRET,
-    { expiresIn: '365d' },
-  )
-}
-
 function signPasswordResetToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' })
 }
@@ -195,6 +185,18 @@ async function authRequired(req, res, next) {
     const tokenTv = Number(payload.tv ?? 0)
     if (!rows[0] || current !== tokenTv) {
       return res.status(401).json({ error: 'Sessão expirada. Faça login novamente.' })
+    }
+    if (payload.typ === 'agent' && payload.acId) {
+      try {
+        await ensureAgentConnectionsSchema(pool)
+        const ok = await validateAgentConnection(pool, payload)
+        if (!ok) {
+          return res.status(401).json({ error: 'Conexão MCP revogada ou inativa.' })
+        }
+      } catch (e) {
+        console.error(e)
+        return res.status(500).json({ error: 'Erro ao validar conexão do agente.' })
+      }
     }
     req.user = payload
     next()
@@ -654,31 +656,124 @@ app.patch('/api/settings/organization', authRequired, async (req, res) => {
   }
 })
 
-app.post('/api/settings/agent-token', authRequired, async (req, res) => {
+function agentMcpEnvPayload(req, token, connection) {
+  const apiUrlHint =
+    process.env.APP_URL ||
+    (req.get('origin') ? String(req.get('origin')).replace(/\/$/, '') : undefined)
+  return {
+    token,
+    expiresInDays: 365,
+    connection,
+    apiUrlHint,
+    mcpEnv: {
+      SPRINTPRO_TOKEN: token,
+      SPRINTPRO_API_URL: apiUrlHint || 'https://sprintpro.vercel.app',
+    },
+  }
+}
+
+app.get('/api/settings/agent-connections', authRequired, async (req, res) => {
   if (!requireOrgMatch(req, res, req.user.orgId)) return
   try {
+    await ensureAgentConnectionsSchema(pool)
+    const { rows } = await pool.query(
+      `SELECT * FROM agent_connections
+       WHERE user_id = $1 AND organization_id = $2
+       ORDER BY created_at DESC`,
+      [req.user.sub, req.user.orgId],
+    )
+    const connections = rows.map(mapAgentConnection)
+    const activeCount = connections.filter((c) => c.active && !c.revokedAt).length
+    return res.json({
+      connections,
+      counts: { total: connections.length, active: activeCount },
+    })
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao listar conexões MCP.' })
+  }
+})
+
+app.post('/api/settings/agent-connections', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  const label = String(req.body?.label ?? '').trim()
+  try {
+    await ensureAgentConnectionsSchema(pool)
     const { rows } = await pool.query(
       'SELECT id, email, organization_id, role, token_version FROM users WHERE id = $1 AND organization_id = $2',
       [req.user.sub, req.user.orgId],
     )
     const row = rows[0]
     if (!row) return res.status(404).json({ error: 'Utilizador não encontrado.' })
-    const token = buildAgentToken(row)
-    const apiUrlHint =
-      process.env.APP_URL ||
-      (req.get('origin') ? String(req.get('origin')).replace(/\/$/, '') : undefined)
-    return res.json({
-      token,
-      expiresInDays: 365,
-      apiUrlHint,
-      mcpEnv: {
-        SPRINTPRO_TOKEN: token,
-        SPRINTPRO_API_URL: apiUrlHint || 'https://sprintpro.vercel.app',
-      },
-    })
+    const created = await createAgentConnection(pool, JWT_SECRET, row, label)
+    if (created.error) return res.status(400).json({ error: created.error })
+    return res.status(201).json(agentMcpEnvPayload(req, created.token, created.connection))
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao criar conexão MCP.' })
+  }
+})
+
+/** Compatível com versão anterior: cria conexão com nome padrão. */
+app.post('/api/settings/agent-token', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  const label = String(req.body?.label ?? 'Conexão MCP').trim() || 'Conexão MCP'
+  try {
+    await ensureAgentConnectionsSchema(pool)
+    const { rows } = await pool.query(
+      'SELECT id, email, organization_id, role, token_version FROM users WHERE id = $1 AND organization_id = $2',
+      [req.user.sub, req.user.orgId],
+    )
+    const row = rows[0]
+    if (!row) return res.status(404).json({ error: 'Utilizador não encontrado.' })
+    const created = await createAgentConnection(pool, JWT_SECRET, row, label)
+    if (created.error) return res.status(400).json({ error: created.error })
+    return res.status(201).json(agentMcpEnvPayload(req, created.token, created.connection))
   } catch (e) {
     console.error(e)
     return res.status(500).json({ error: 'Erro ao gerar token do agente.' })
+  }
+})
+
+app.patch('/api/settings/agent-connections/:id', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  const connectionId = req.params.id
+  const active = typeof req.body?.active === 'boolean' ? req.body.active : null
+  if (active === null) {
+    return res.status(400).json({ error: 'Informe active (boolean).' })
+  }
+  try {
+    await ensureAgentConnectionsSchema(pool)
+    const revokedAt = active ? null : new Date()
+    const { rows } = await pool.query(
+      `UPDATE agent_connections
+       SET active = $1, revoked_at = $2
+       WHERE id = $3 AND user_id = $4 AND organization_id = $5
+       RETURNING *`,
+      [active, revokedAt, connectionId, req.user.sub, req.user.orgId],
+    )
+    if (!rows[0]) return res.status(404).json({ error: 'Conexão não encontrada.' })
+    return res.json({ connection: mapAgentConnection(rows[0]) })
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao atualizar conexão MCP.' })
+  }
+})
+
+app.delete('/api/settings/agent-connections/:id', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  const connectionId = req.params.id
+  try {
+    await ensureAgentConnectionsSchema(pool)
+    const { rowCount } = await pool.query(
+      'DELETE FROM agent_connections WHERE id = $1 AND user_id = $2 AND organization_id = $3',
+      [connectionId, req.user.sub, req.user.orgId],
+    )
+    if (!rowCount) return res.status(404).json({ error: 'Conexão não encontrada.' })
+    return res.status(204).send()
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao excluir conexão MCP.' })
   }
 })
 

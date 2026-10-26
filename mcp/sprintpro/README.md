@@ -6,14 +6,14 @@ Servidor [Model Context Protocol](https://modelcontextprotocol.io) para o Sprint
 
 ### Só na nuvem (recomendado)
 
-1. Acesse o SprintPro em produção → **Configurações** → **Segurança** → **Gerar token do agente**.
-2. Copie o token para `SPRINTPRO_TOKEN` no MCP do Cursor/GrokBot.
+1. Acesse o SprintPro em produção → **Configurações** → **Conexões MCP (agentes)** → **Nova conexão** (ex.: Cursor).
+2. Copie o token exibido uma vez para `SPRINTPRO_TOKEN` no MCP do Cursor/GrokBot.
 3. Use `SPRINTPRO_API_URL=https://sprintpro.vercel.app` (ou seu domínio).
 
 ### Com máquina local (opcional)
 
 1. Na **raiz** do repositório: `npm run mcp:install`
-2. `npm run mcp:token -- seu@email.com`
+2. `npm run mcp:token -- seu@email.com [nome-da-conexão]`
 3. Coloque no `.env` da raiz (ou nas env vars do host do agente):
 
    ```env

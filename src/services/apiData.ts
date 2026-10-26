@@ -1,5 +1,15 @@
 import { apiFetchJson } from '../lib/apiClient'
-import type { AppUser, Board, Invite, Task, TaskCategory, TaskNote, TaskStatus, UserRole } from '../types'
+import type {
+  AgentConnection,
+  AppUser,
+  Board,
+  Invite,
+  Task,
+  TaskCategory,
+  TaskNote,
+  TaskStatus,
+  UserRole,
+} from '../types'
 
 export async function fetchBoards() {
   return apiFetchJson<Board[]>('GET', '/api/boards')
@@ -156,9 +166,10 @@ export async function changePassword(currentPassword: string, newPassword: strin
   })
 }
 
-export type AgentTokenResponse = {
+export type AgentMcpCreateResponse = {
   token: string
   expiresInDays: number
+  connection: AgentConnection
   apiUrlHint?: string
   mcpEnv: {
     SPRINTPRO_TOKEN: string
@@ -166,8 +177,34 @@ export type AgentTokenResponse = {
   }
 }
 
-export async function issueAgentToken() {
-  return apiFetchJson<AgentTokenResponse>('POST', '/api/settings/agent-token')
+export type AgentConnectionsListResponse = {
+  connections: AgentConnection[]
+  counts: { total: number; active: number }
+}
+
+export async function fetchAgentConnections() {
+  return apiFetchJson<AgentConnectionsListResponse>('GET', '/api/settings/agent-connections')
+}
+
+export async function createAgentConnection(label: string) {
+  return apiFetchJson<AgentMcpCreateResponse>('POST', '/api/settings/agent-connections', { label })
+}
+
+export async function setAgentConnectionActive(connectionId: string, active: boolean) {
+  return apiFetchJson<{ connection: AgentConnection }>('PATCH', `/api/settings/agent-connections/${connectionId}`, {
+    active,
+  })
+}
+
+export async function deleteAgentConnection(connectionId: string) {
+  return apiFetchJson<void>('DELETE', `/api/settings/agent-connections/${connectionId}`)
+}
+
+/** @deprecated Use createAgentConnection */
+export async function issueAgentToken(label?: string) {
+  return apiFetchJson<AgentMcpCreateResponse>('POST', '/api/settings/agent-token', {
+    label: label ?? 'Conexão MCP',
+  })
 }
 
 export async function deleteMainAccount() {

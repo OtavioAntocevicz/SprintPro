@@ -3,8 +3,11 @@ import { Link } from 'react-router-dom'
 import { Layout } from '../components/Layout'
 import {
   changePassword,
-  issueAgentToken,
+  createAgentConnection,
   createCategory,
+  deleteAgentConnection,
+  fetchAgentConnections,
+  setAgentConnectionActive,
   deleteCategory,
   deleteMainAccount,
   fetchCategories,
@@ -19,7 +22,7 @@ import { usePwaInstall } from '../hooks/usePwaInstall'
 import { useAuthStore } from '../store/authStore'
 import { pollIntervalForMemberCount } from '../utils/pollInterval'
 import { userRoleLabel } from '../utils/userRoleLabel'
-import type { AppUser, TaskCategory } from '../types'
+import type { AgentConnection, AppUser, TaskCategory } from '../types'
 
 function formatLastSeen(lastSeenAt?: string) {
   if (!lastSeenAt) return 'Sem atividade registrada'
@@ -45,9 +48,22 @@ export function SettingsPage() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [feedback, setFeedback] = useState('')
-  const [agentToken, setAgentToken] = useState('')
-  const [agentTokenBusy, setAgentTokenBusy] = useState(false)
+  const [agentConnections, setAgentConnections] = useState<AgentConnection[]>([])
+  const [agentCounts, setAgentCounts] = useState({ total: 0, active: 0 })
+  const [newMcpLabel, setNewMcpLabel] = useState('Cursor')
+  const [newMcpToken, setNewMcpToken] = useState('')
+  const [mcpBusy, setMcpBusy] = useState(false)
   const pwa = usePwaInstall()
+
+  async function loadAgentConnections() {
+    try {
+      const data = await fetchAgentConnections()
+      setAgentConnections(data.connections)
+      setAgentCounts(data.counts)
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   useEffect(() => {
     if (!appUser?.organizationId) return
@@ -64,6 +80,7 @@ export function SettingsPage() {
       }
     }
     void load()
+    void loadAgentConnections()
     const id = window.setInterval(() => void load(), pollMs)
     return () => {
       cancelled = true
@@ -172,19 +189,56 @@ export function SettingsPage() {
     }
   }
 
-  async function onIssueAgentToken() {
-    setAgentTokenBusy(true)
+  async function onCreateMcpConnection(event: FormEvent) {
+    event.preventDefault()
+    const label = newMcpLabel.trim()
+    if (!label) return
+    setMcpBusy(true)
     setFeedback('')
+    setNewMcpToken('')
     try {
-      const result = await issueAgentToken()
-      setAgentToken(result.token)
+      const result = await createAgentConnection(label)
+      setNewMcpToken(result.token)
+      await loadAgentConnections()
       setFeedback(
-        `Token MCP gerado (válido ${result.expiresInDays} dias). Copie abaixo e cole no GrokBot/Cursor — não compartilhe publicamente.`,
+        `Conexão "${result.connection.label}" criada. Copie o token agora — ele não será exibido de novo.`,
       )
     } catch (e) {
-      setFeedback(e instanceof Error ? e.message : 'Não foi possível gerar o token do agente.')
+      setFeedback(e instanceof Error ? e.message : 'Não foi possível criar a conexão MCP.')
     } finally {
-      setAgentTokenBusy(false)
+      setMcpBusy(false)
+    }
+  }
+
+  async function onToggleMcpConnection(connection: AgentConnection) {
+    const isLive = connection.active && !connection.revokedAt
+    setMcpBusy(true)
+    setFeedback('')
+    try {
+      await setAgentConnectionActive(connection.id, !isLive)
+      await loadAgentConnections()
+      setFeedback(isLive ? 'Conexão MCP desativada.' : 'Conexão MCP reativada.')
+    } catch (e) {
+      setFeedback(e instanceof Error ? e.message : 'Falha ao atualizar conexão.')
+    } finally {
+      setMcpBusy(false)
+    }
+  }
+
+  async function onDeleteMcpConnection(connection: AgentConnection) {
+    if (!window.confirm(`Excluir a conexão "${connection.label}"? O token deixa de funcionar imediatamente.`)) {
+      return
+    }
+    setMcpBusy(true)
+    setFeedback('')
+    try {
+      await deleteAgentConnection(connection.id)
+      await loadAgentConnections()
+      setFeedback('Conexão MCP excluída.')
+    } catch (e) {
+      setFeedback(e instanceof Error ? e.message : 'Falha ao excluir conexão.')
+    } finally {
+      setMcpBusy(false)
     }
   }
 
@@ -443,6 +497,111 @@ export function SettingsPage() {
         </article>
       </section>
 
+      <section className="mt-4">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Conexões MCP (agentes)</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Cursor, GrokBot e outros agentes que usam o servidor SprintPro MCP na sua conta.
+              </p>
+            </div>
+            <div className="rounded-full bg-violet-100 px-3 py-1 text-sm font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">
+              {agentCounts.active} ativa{agentCounts.active === 1 ? '' : 's'} · {agentCounts.total} no total
+            </div>
+          </div>
+
+          <form onSubmit={onCreateMcpConnection} className="mt-4 flex flex-wrap items-end gap-2">
+            <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-xs text-slate-600 dark:text-slate-400">
+              Nome da conexão
+              <input
+                value={newMcpLabel}
+                onChange={(e) => setNewMcpLabel(e.target.value)}
+                placeholder="Ex.: Cursor, GrokBot"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={mcpBusy}
+              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {mcpBusy ? 'Aguarde…' : 'Nova conexão'}
+            </button>
+          </form>
+
+          {newMcpToken && (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/90 p-3 dark:border-amber-900 dark:bg-amber-950/40">
+              <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                Token (copie agora — válido 365 dias)
+              </p>
+              <textarea
+                readOnly
+                value={newMcpToken}
+                rows={3}
+                className="mt-2 w-full rounded-lg border border-amber-200 bg-white px-2 py-2 font-mono text-[11px] dark:border-amber-800 dark:bg-slate-950"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+            </div>
+          )}
+
+          {agentConnections.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+              Nenhuma conexão MCP ainda. Crie uma para vincular Cursor ou GrokBot ao SprintPro.
+            </p>
+          ) : (
+            <ul className="mt-4 divide-y divide-slate-200 dark:divide-slate-700">
+              {agentConnections.map((connection) => {
+                const isLive = connection.active && !connection.revokedAt
+                return (
+                  <li
+                    key={connection.id}
+                    className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-slate-900 dark:text-slate-100">{connection.label}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Criada em {formatLastSeen(connection.createdAt)}
+                        {connection.lastUsedAt
+                          ? ` · Último uso ${formatLastSeen(connection.lastUsedAt)}`
+                          : ' · Ainda não usada'}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        isLive
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                          : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      {isLive ? 'Ativa' : 'Desativada'}
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={mcpBusy}
+                        onClick={() => void onToggleMcpConnection(connection)}
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs dark:border-slate-600"
+                      >
+                        {isLive ? 'Desativar' : 'Reativar'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={mcpBusy}
+                        onClick={() => void onDeleteMcpConnection(connection)}
+                        className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 dark:bg-red-950 dark:text-red-400"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </article>
+      </section>
+
       <section className="mt-4 grid gap-4 md:grid-cols-2">
         <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
           <h2 className="text-lg font-semibold">Equipe e permissões</h2>
@@ -460,30 +619,9 @@ export function SettingsPage() {
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
             Último acesso da conta atual: {formatLastSeen(appUser?.lastSeenAt)}
           </p>
-          <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/80 p-3 dark:border-violet-900 dark:bg-violet-950/40">
-            <p className="text-sm font-medium text-violet-900 dark:text-violet-200">Agente (MCP / GrokBot)</p>
-            <p className="mt-1 text-xs text-violet-800/90 dark:text-violet-300/90">
-              Gere um token sem instalar nada no PC. Use em Configurações do Cursor ou do GrokBot como{' '}
-              <code className="rounded bg-white/60 px-1 dark:bg-slate-900/60">SPRINTPRO_TOKEN</code>.
-            </p>
-            <button
-              type="button"
-              disabled={agentTokenBusy}
-              onClick={() => void onIssueAgentToken()}
-              className="mt-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
-            >
-              {agentTokenBusy ? 'Gerando…' : 'Gerar token do agente'}
-            </button>
-            {agentToken && (
-              <textarea
-                readOnly
-                value={agentToken}
-                rows={4}
-                className="mt-2 w-full rounded-lg border border-violet-200 bg-white px-2 py-2 font-mono text-[11px] text-slate-800 dark:border-violet-800 dark:bg-slate-950 dark:text-slate-100"
-                onFocus={(e) => e.currentTarget.select()}
-              />
-            )}
-          </div>
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            Tokens de agentes MCP são geridos na seção <strong>Conexões MCP</strong> acima.
+          </p>
           <form onSubmit={onChangePassword} className="mt-3 space-y-2">
             <input
               type="password"
