@@ -156,6 +156,20 @@ export async function changePassword(currentPassword: string, newPassword: strin
   })
 }
 
+export type AgentTokenResponse = {
+  token: string
+  expiresInDays: number
+  apiUrlHint?: string
+  mcpEnv: {
+    SPRINTPRO_TOKEN: string
+    SPRINTPRO_API_URL: string
+  }
+}
+
+export async function issueAgentToken() {
+  return apiFetchJson<AgentTokenResponse>('POST', '/api/settings/agent-token')
+}
+
 export async function deleteMainAccount() {
   return apiFetchJson<void>('DELETE', '/api/settings/account', { confirm: 'EXCLUIR' })
 }

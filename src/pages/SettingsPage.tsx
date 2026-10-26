@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Layout } from '../components/Layout'
 import {
   changePassword,
+  issueAgentToken,
   createCategory,
   deleteCategory,
   deleteMainAccount,
@@ -44,6 +45,8 @@ export function SettingsPage() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [feedback, setFeedback] = useState('')
+  const [agentToken, setAgentToken] = useState('')
+  const [agentTokenBusy, setAgentTokenBusy] = useState(false)
   const pwa = usePwaInstall()
 
   useEffect(() => {
@@ -166,6 +169,22 @@ export function SettingsPage() {
       setFeedback(e instanceof Error ? e.message : 'Falha ao excluir categoria.')
     } finally {
       setCategoryBusy(false)
+    }
+  }
+
+  async function onIssueAgentToken() {
+    setAgentTokenBusy(true)
+    setFeedback('')
+    try {
+      const result = await issueAgentToken()
+      setAgentToken(result.token)
+      setFeedback(
+        `Token MCP gerado (válido ${result.expiresInDays} dias). Copie abaixo e cole no GrokBot/Cursor — não compartilhe publicamente.`,
+      )
+    } catch (e) {
+      setFeedback(e instanceof Error ? e.message : 'Não foi possível gerar o token do agente.')
+    } finally {
+      setAgentTokenBusy(false)
     }
   }
 
@@ -441,6 +460,30 @@ export function SettingsPage() {
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
             Último acesso da conta atual: {formatLastSeen(appUser?.lastSeenAt)}
           </p>
+          <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/80 p-3 dark:border-violet-900 dark:bg-violet-950/40">
+            <p className="text-sm font-medium text-violet-900 dark:text-violet-200">Agente (MCP / GrokBot)</p>
+            <p className="mt-1 text-xs text-violet-800/90 dark:text-violet-300/90">
+              Gere um token sem instalar nada no PC. Use em Configurações do Cursor ou do GrokBot como{' '}
+              <code className="rounded bg-white/60 px-1 dark:bg-slate-900/60">SPRINTPRO_TOKEN</code>.
+            </p>
+            <button
+              type="button"
+              disabled={agentTokenBusy}
+              onClick={() => void onIssueAgentToken()}
+              className="mt-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+            >
+              {agentTokenBusy ? 'Gerando…' : 'Gerar token do agente'}
+            </button>
+            {agentToken && (
+              <textarea
+                readOnly
+                value={agentToken}
+                rows={4}
+                className="mt-2 w-full rounded-lg border border-violet-200 bg-white px-2 py-2 font-mono text-[11px] text-slate-800 dark:border-violet-800 dark:bg-slate-950 dark:text-slate-100"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+            )}
+          </div>
           <form onSubmit={onChangePassword} className="mt-3 space-y-2">
             <input
               type="password"

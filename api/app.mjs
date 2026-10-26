@@ -163,6 +163,22 @@ function buildAuthToken(userRow) {
   })
 }
 
+/** JWT longo para MCP / agentes (Cursor, GrokBot). */
+function buildAgentToken(userRow) {
+  return jwt.sign(
+    {
+      sub: userRow.id,
+      email: userRow.email,
+      orgId: String(userRow.organization_id),
+      role: userRow.role,
+      tv: Number(userRow.token_version ?? 0),
+      typ: 'agent',
+    },
+    JWT_SECRET,
+    { expiresIn: '365d' },
+  )
+}
+
 function signPasswordResetToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' })
 }
@@ -635,6 +651,34 @@ app.patch('/api/settings/organization', authRequired, async (req, res) => {
   } catch (e) {
     console.error(e)
     return res.status(500).json({ error: 'Erro ao atualizar organização.' })
+  }
+})
+
+app.post('/api/settings/agent-token', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, email, organization_id, role, token_version FROM users WHERE id = $1 AND organization_id = $2',
+      [req.user.sub, req.user.orgId],
+    )
+    const row = rows[0]
+    if (!row) return res.status(404).json({ error: 'Utilizador não encontrado.' })
+    const token = buildAgentToken(row)
+    const apiUrlHint =
+      process.env.APP_URL ||
+      (req.get('origin') ? String(req.get('origin')).replace(/\/$/, '') : undefined)
+    return res.json({
+      token,
+      expiresInDays: 365,
+      apiUrlHint,
+      mcpEnv: {
+        SPRINTPRO_TOKEN: token,
+        SPRINTPRO_API_URL: apiUrlHint || 'https://sprintpro.vercel.app',
+      },
+    })
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao gerar token do agente.' })
   }
 })
 
