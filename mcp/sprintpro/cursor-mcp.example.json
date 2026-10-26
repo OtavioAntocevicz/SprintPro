@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "sprintpro": {
+      "command": "node",
+      "args": ["mcp/sprintpro/src/index.mjs"],
+      "env": {
+        "SPRINTPRO_TOKEN": "cole_o_token_de_npm_run_mcp_token",
+        "SPRINTPRO_API_URL": "http://127.0.0.1:8787",
+        "SPRINTPRO_DEFAULT_BOARD_NAME": "Geral"
+      }
+    }
+  }
+}

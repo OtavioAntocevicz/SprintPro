@@ -17,7 +17,9 @@ jobs:
           cache: npm
       - run: npm install
       - run: npm install --prefix api
+      - run: npm run mcp:install
       - run: npm run lint
       - run: npm run test
       - run: npm run test:api
+      - run: npm test --prefix mcp/sprintpro
       - run: npm run build

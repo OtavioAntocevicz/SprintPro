@@ -93,6 +93,11 @@ O `SprintPro` combina Kanban com permissões por organização, convites de equi
 - Vercel (frontend estático + API serverless no mesmo projeto)
 - Configuração em `vercel.json`
 
+### Agente (MCP)
+- Servidor MCP em `mcp/sprintpro` para Cursor / GrokBot gerenciar tarefas por chat
+- Documentação: [mcp/sprintpro/README.md](mcp/sprintpro/README.md)
+- Token de agente: `npm run mcp:token -- seu@email.com`
+
 ## Segurança e boas práticas implementadas
 
 - Senha forte obrigatória (mínimo 8 caracteres com letras e números).
@@ -110,7 +115,9 @@ SprintPro/
 ├─ api/                     # API Express + integração Neon
 │  ├─ app.mjs               # Rotas e lógica principal
 │  ├─ index.mjs             # Entry point serverless (Vercel)
+│  ├─ issue-mcp-token.mjs   # JWT longo para o servidor MCP
 │  └─ reset-password.mjs    # Script CLI para reset manual de senha
+├─ mcp/sprintpro/           # Servidor MCP (tools sprintpro_*)
 ├─ db/                      # SQL do schema/migrations consolidadas
 ├─ src/
 │  ├─ components/           # Componentes reutilizáveis
