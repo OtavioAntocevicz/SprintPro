@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { ErrorBlock, LoadingBlock } from '../components/AsyncState'
 import { Link } from 'react-router-dom'
 import { Layout } from '../components/Layout'
 import {
@@ -7,6 +8,7 @@ import {
   createCategory,
   deleteAgentConnection,
   fetchAgentConnections,
+  regenerateAgentConnectionToken,
   setAgentConnectionActive,
   deleteCategory,
   deleteMainAccount,
@@ -23,6 +25,15 @@ import { useAuthStore } from '../store/authStore'
 import { pollIntervalForMemberCount } from '../utils/pollInterval'
 import { userRoleLabel } from '../utils/userRoleLabel'
 import type { AgentConnection, AppUser, TaskCategory } from '../types'
+import type { AgentMcpCreateResponse } from '../services/apiData'
+
+type McpTokenReveal = {
+  connectionId: string
+  connectionLabel: string
+  token: string
+  mcpEnv: AgentMcpCreateResponse['mcpEnv']
+  reason: 'create' | 'regenerate'
+}
 
 function formatLastSeen(lastSeenAt?: string) {
   if (!lastSeenAt) return 'Sem atividade registrada'
@@ -51,22 +62,57 @@ export function SettingsPage() {
   const [agentConnections, setAgentConnections] = useState<AgentConnection[]>([])
   const [agentCounts, setAgentCounts] = useState({ total: 0, active: 0 })
   const [newMcpLabel, setNewMcpLabel] = useState('Cursor')
-  const [newMcpToken, setNewMcpToken] = useState('')
   const [mcpBusy, setMcpBusy] = useState(false)
+  const [mcpLoading, setMcpLoading] = useState(true)
+  const [mcpError, setMcpError] = useState('')
+  const [mcpMessage, setMcpMessage] = useState('')
+  const [tokenReveal, setTokenReveal] = useState<McpTokenReveal | null>(null)
+  const [highlightConnectionId, setHighlightConnectionId] = useState<string | null>(null)
+  const tokenPanelRef = useRef<HTMLDivElement | null>(null)
   const pwa = usePwaInstall()
 
   async function loadAgentConnections() {
+    if (!appUser?.id) return
+    setMcpLoading(true)
+    setMcpError('')
     try {
       const data = await fetchAgentConnections()
-      setAgentConnections(data.connections)
-      setAgentCounts(data.counts)
+      setAgentConnections(Array.isArray(data.connections) ? data.connections : [])
+      setAgentCounts(data.counts ?? { total: 0, active: 0 })
     } catch (e) {
-      console.error(e)
+      setMcpError(e instanceof Error ? e.message : 'Não foi possível carregar as conexões MCP.')
+      setAgentConnections([])
+      setAgentCounts({ total: 0, active: 0 })
+    } finally {
+      setMcpLoading(false)
+    }
+  }
+
+  function revealMcpToken(result: AgentMcpCreateResponse, reason: McpTokenReveal['reason']) {
+    setTokenReveal({
+      connectionId: result.connection.id,
+      connectionLabel: result.connection.label,
+      token: result.token,
+      mcpEnv: result.mcpEnv,
+      reason,
+    })
+    setHighlightConnectionId(result.connection.id)
+    window.setTimeout(() => {
+      tokenPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 50)
+  }
+
+  async function copyText(value: string, successMessage: string) {
+    try {
+      await navigator.clipboard.writeText(value)
+      setMcpMessage(successMessage)
+    } catch {
+      setMcpMessage('Não foi possível copiar automaticamente. Selecione o texto e copie manualmente.')
     }
   }
 
   useEffect(() => {
-    if (!appUser?.organizationId) return
+    if (!appUser?.organizationId || !appUser?.id) return
     let cancelled = false
     async function load() {
       try {
@@ -79,14 +125,17 @@ export function SettingsPage() {
         console.error(e)
       }
     }
-    void load()
-    void loadAgentConnections()
-    const id = window.setInterval(() => void load(), pollMs)
+    async function refreshAll() {
+      await load()
+      if (!cancelled) await loadAgentConnections()
+    }
+    void refreshAll()
+    const id = window.setInterval(() => void refreshAll(), pollMs)
     return () => {
       cancelled = true
       window.clearInterval(id)
     }
-  }, [appUser?.organizationId, pollMs])
+  }, [appUser?.organizationId, appUser?.id, pollMs])
 
   const membersWithFavoritePermission = useMemo(
     () => members.filter((m) => m.role === 'owner' || m.canFavorite).length,
@@ -194,17 +243,33 @@ export function SettingsPage() {
     const label = newMcpLabel.trim()
     if (!label) return
     setMcpBusy(true)
-    setFeedback('')
-    setNewMcpToken('')
+    setMcpMessage('')
     try {
       const result = await createAgentConnection(label)
-      setNewMcpToken(result.token)
       await loadAgentConnections()
-      setFeedback(
-        `Conexão "${result.connection.label}" criada. Copie o token agora — ele não será exibido de novo.`,
-      )
+      revealMcpToken(result, 'create')
+      setMcpMessage(`Conexão "${result.connection.label}" criada. Copie o token abaixo — ele não será exibido de novo.`)
     } catch (e) {
-      setFeedback(e instanceof Error ? e.message : 'Não foi possível criar a conexão MCP.')
+      setMcpMessage(e instanceof Error ? e.message : 'Não foi possível criar a conexão MCP.')
+    } finally {
+      setMcpBusy(false)
+    }
+  }
+
+  async function onRegenerateMcpToken(connection: AgentConnection) {
+    const ok = window.confirm(
+      `Gerar um novo token para "${connection.label}"? O token anterior deixa de funcionar na hora.`,
+    )
+    if (!ok) return
+    setMcpBusy(true)
+    setMcpMessage('')
+    try {
+      const result = await regenerateAgentConnectionToken(connection.id)
+      await loadAgentConnections()
+      revealMcpToken(result, 'regenerate')
+      setMcpMessage(`Novo token gerado para "${connection.label}". Atualize o agente (Cursor/GrokBot).`)
+    } catch (e) {
+      setMcpMessage(e instanceof Error ? e.message : 'Falha ao gerar novo token.')
     } finally {
       setMcpBusy(false)
     }
@@ -213,34 +278,55 @@ export function SettingsPage() {
   async function onToggleMcpConnection(connection: AgentConnection) {
     const isLive = connection.active && !connection.revokedAt
     setMcpBusy(true)
-    setFeedback('')
+    setMcpMessage('')
     try {
       await setAgentConnectionActive(connection.id, !isLive)
       await loadAgentConnections()
-      setFeedback(isLive ? 'Conexão MCP desativada.' : 'Conexão MCP reativada.')
+      if (isLive && tokenReveal?.connectionId === connection.id) {
+        setTokenReveal(null)
+      }
+      setMcpMessage(
+        isLive
+          ? `Conexão "${connection.label}" desativada. O token não aceita mais chamadas.`
+          : `Conexão "${connection.label}" reativada.`,
+      )
     } catch (e) {
-      setFeedback(e instanceof Error ? e.message : 'Falha ao atualizar conexão.')
+      setMcpMessage(e instanceof Error ? e.message : 'Falha ao atualizar conexão.')
     } finally {
       setMcpBusy(false)
     }
   }
 
   async function onDeleteMcpConnection(connection: AgentConnection) {
-    if (!window.confirm(`Excluir a conexão "${connection.label}"? O token deixa de funcionar imediatamente.`)) {
+    if (
+      !window.confirm(
+        `Excluir "${connection.label}"? O token deixa de funcionar imediatamente e a conexão some da lista.`,
+      )
+    ) {
       return
     }
     setMcpBusy(true)
-    setFeedback('')
+    setMcpMessage('')
     try {
       await deleteAgentConnection(connection.id)
+      if (tokenReveal?.connectionId === connection.id) {
+        setTokenReveal(null)
+      }
+      if (highlightConnectionId === connection.id) {
+        setHighlightConnectionId(null)
+      }
       await loadAgentConnections()
-      setFeedback('Conexão MCP excluída.')
+      setMcpMessage(`Conexão "${connection.label}" excluída. Remova ou atualize o token no seu agente.`)
     } catch (e) {
-      setFeedback(e instanceof Error ? e.message : 'Falha ao excluir conexão.')
+      setMcpMessage(e instanceof Error ? e.message : 'Falha ao excluir conexão.')
     } finally {
       setMcpBusy(false)
     }
   }
+
+  const mcpEnvText = tokenReveal
+    ? `SPRINTPRO_TOKEN=${tokenReveal.mcpEnv.SPRINTPRO_TOKEN}\nSPRINTPRO_API_URL=${tokenReveal.mcpEnv.SPRINTPRO_API_URL}`
+    : ''
 
   async function onChangePassword(event: FormEvent) {
     event.preventDefault()
@@ -503,13 +589,30 @@ export function SettingsPage() {
             <div>
               <h2 className="text-lg font-semibold">Conexões MCP (agentes)</h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Cursor, GrokBot e outros agentes que usam o servidor SprintPro MCP na sua conta.
+                Conexões desta conta ({appUser?.email}). Cursor, GrokBot e outros agentes com o servidor
+                SprintPro MCP.
               </p>
             </div>
-            <div className="rounded-full bg-violet-100 px-3 py-1 text-sm font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">
-              {agentCounts.active} ativa{agentCounts.active === 1 ? '' : 's'} · {agentCounts.total} no total
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={mcpLoading || mcpBusy}
+                onClick={() => void loadAgentConnections()}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs dark:border-slate-600"
+              >
+                Atualizar lista
+              </button>
+              <div className="rounded-full bg-violet-100 px-3 py-1 text-sm font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">
+                {agentCounts.active} ativa{agentCounts.active === 1 ? '' : 's'} · {agentCounts.total} no total
+              </div>
             </div>
           </div>
+
+          {mcpMessage && (
+            <p className="mt-3 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+              {mcpMessage}
+            </p>
+          )}
 
           <form onSubmit={onCreateMcpConnection} className="mt-4 flex flex-wrap items-end gap-2">
             <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-xs text-slate-600 dark:text-slate-400">
@@ -530,33 +633,92 @@ export function SettingsPage() {
             </button>
           </form>
 
-          {newMcpToken && (
-            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/90 p-3 dark:border-amber-900 dark:bg-amber-950/40">
-              <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
-                Token (copie agora — válido 365 dias)
-              </p>
-              <textarea
-                readOnly
-                value={newMcpToken}
-                rows={3}
-                className="mt-2 w-full rounded-lg border border-amber-200 bg-white px-2 py-2 font-mono text-[11px] dark:border-amber-800 dark:bg-slate-950"
-                onFocus={(e) => e.currentTarget.select()}
-              />
+          {tokenReveal && (
+            <div
+              ref={tokenPanelRef}
+              className="mt-4 rounded-xl border border-amber-300 bg-amber-50/95 p-4 dark:border-amber-800 dark:bg-amber-950/50"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
+                    {tokenReveal.reason === 'create' ? 'Nova conexão' : 'Novo token'} —{' '}
+                    {tokenReveal.connectionLabel}
+                  </p>
+                  <p className="mt-1 text-xs text-amber-900/90 dark:text-amber-200/90">
+                    Válido por 365 dias. Guarde em local seguro; não será mostrado de novo nesta tela.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTokenReveal(null)}
+                  className="text-xs text-amber-900 underline dark:text-amber-200"
+                >
+                  Já copiei, fechar
+                </button>
+              </div>
+              <label className="mt-3 block text-xs font-medium text-amber-950 dark:text-amber-100">
+                Token (SPRINTPRO_TOKEN)
+                <textarea
+                  readOnly
+                  value={tokenReveal.token}
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-amber-200 bg-white px-2 py-2 font-mono text-[11px] dark:border-amber-800 dark:bg-slate-950"
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+              </label>
+              <label className="mt-2 block text-xs font-medium text-amber-950 dark:text-amber-100">
+                Variáveis para o agente
+                <textarea
+                  readOnly
+                  value={mcpEnvText}
+                  rows={2}
+                  className="mt-1 w-full rounded-lg border border-amber-200 bg-white px-2 py-2 font-mono text-[11px] dark:border-amber-800 dark:bg-slate-950"
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+              </label>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void copyText(tokenReveal.token, 'Token copiado.')}
+                  className="rounded-lg bg-amber-800 px-3 py-1.5 text-xs font-medium text-white dark:bg-amber-700"
+                >
+                  Copiar token
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void copyText(mcpEnvText, 'Variáveis copiadas.')}
+                  className="rounded-lg border border-amber-700 px-3 py-1.5 text-xs text-amber-950 dark:text-amber-100"
+                >
+                  Copiar env
+                </button>
+              </div>
             </div>
           )}
 
-          {agentConnections.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-              Nenhuma conexão MCP ainda. Crie uma para vincular Cursor ou GrokBot ao SprintPro.
-            </p>
+          {mcpLoading ? (
+            <LoadingBlock label="Carregando conexões MCP…" className="mt-4 py-8" />
+          ) : mcpError ? (
+            <ErrorBlock message={mcpError} onRetry={() => void loadAgentConnections()} className="mt-4" />
+          ) : agentConnections.length === 0 ? (
+            <div className="mt-4 space-y-2 text-sm text-slate-500 dark:text-slate-400">
+              <p>Nenhuma conexão registrada para esta conta.</p>
+              <p className="text-xs">
+                Se o agente já funciona com um token antigo (antes do registro na lista), crie uma nova
+                conexão aqui ou use <strong>Novo token</strong> após criar — tokens antigos sem registro não
+                aparecem nesta lista.
+              </p>
+            </div>
           ) : (
             <ul className="mt-4 divide-y divide-slate-200 dark:divide-slate-700">
               {agentConnections.map((connection) => {
                 const isLive = connection.active && !connection.revokedAt
+                const highlighted = highlightConnectionId === connection.id
                 return (
                   <li
                     key={connection.id}
-                    className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0"
+                    className={`flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 ${
+                      highlighted ? 'rounded-lg bg-violet-50/80 px-2 dark:bg-violet-950/30' : ''
+                    }`}
                   >
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-slate-900 dark:text-slate-100">{connection.label}</p>
@@ -577,6 +739,14 @@ export function SettingsPage() {
                       {isLive ? 'Ativa' : 'Desativada'}
                     </span>
                     <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={mcpBusy}
+                        onClick={() => void onRegenerateMcpToken(connection)}
+                        className="rounded-lg border border-violet-300 px-3 py-1.5 text-xs text-violet-800 dark:border-violet-700 dark:text-violet-200"
+                      >
+                        Novo token
+                      </button>
                       <button
                         type="button"
                         disabled={mcpBusy}

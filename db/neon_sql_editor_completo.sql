@@ -159,11 +159,13 @@ CREATE TABLE IF NOT EXISTS agent_connections (
   active            boolean NOT NULL DEFAULT true,
   created_at        timestamptz NOT NULL DEFAULT now(),
   last_used_at      timestamptz,
-  revoked_at        timestamptz
+  revoked_at        timestamptz,
+  token_version     integer NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_connections_user ON agent_connections (user_id);
 CREATE INDEX IF NOT EXISTS idx_agent_connections_org ON agent_connections (organization_id);
+ALTER TABLE agent_connections ADD COLUMN IF NOT EXISTS token_version integer NOT NULL DEFAULT 0;
 
 -- Migrações idempotentes (bases já existentes)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version integer NOT NULL DEFAULT 0;

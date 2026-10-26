@@ -200,6 +200,13 @@ export async function deleteAgentConnection(connectionId: string) {
   return apiFetchJson<void>('DELETE', `/api/settings/agent-connections/${connectionId}`)
 }
 
+export async function regenerateAgentConnectionToken(connectionId: string) {
+  return apiFetchJson<AgentMcpCreateResponse>(
+    'POST',
+    `/api/settings/agent-connections/${connectionId}/token`,
+  )
+}
+
 /** @deprecated Use createAgentConnection */
 export async function issueAgentToken(label?: string) {
   return apiFetchJson<AgentMcpCreateResponse>('POST', '/api/settings/agent-token', {

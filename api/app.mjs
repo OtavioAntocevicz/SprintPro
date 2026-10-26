@@ -12,6 +12,7 @@ import {
   createAgentConnection,
   ensureAgentConnectionsSchema,
   mapAgentConnection,
+  regenerateAgentConnectionToken,
   validateAgentConnection,
 } from './lib/agent-connections.mjs'
 import { isStrongPassword } from './lib/validate.mjs'
@@ -678,9 +679,9 @@ app.get('/api/settings/agent-connections', authRequired, async (req, res) => {
     await ensureAgentConnectionsSchema(pool)
     const { rows } = await pool.query(
       `SELECT * FROM agent_connections
-       WHERE user_id = $1 AND organization_id = $2
+       WHERE user_id = $1 AND organization_id = $2::uuid
        ORDER BY created_at DESC`,
-      [req.user.sub, req.user.orgId],
+      [req.user.sub, String(req.user.orgId)],
     )
     const connections = rows.map(mapAgentConnection)
     const activeCount = connections.filter((c) => c.active && !c.revokedAt).length
@@ -690,7 +691,9 @@ app.get('/api/settings/agent-connections', authRequired, async (req, res) => {
     })
   } catch (e) {
     console.error(e)
-    return res.status(500).json({ error: 'Erro ao listar conexões MCP.' })
+    return res.status(500).json({
+      error: publicErrorMessage('Erro ao listar conexões MCP.', e),
+    })
   }
 })
 
@@ -735,6 +738,26 @@ app.post('/api/settings/agent-token', authRequired, async (req, res) => {
   }
 })
 
+app.post('/api/settings/agent-connections/:id/token', authRequired, async (req, res) => {
+  if (!requireOrgMatch(req, res, req.user.orgId)) return
+  const connectionId = req.params.id
+  try {
+    await ensureAgentConnectionsSchema(pool)
+    const { rows } = await pool.query(
+      'SELECT id, email, organization_id, role, token_version FROM users WHERE id = $1 AND organization_id = $2',
+      [req.user.sub, req.user.orgId],
+    )
+    const row = rows[0]
+    if (!row) return res.status(404).json({ error: 'Utilizador não encontrado.' })
+    const rotated = await regenerateAgentConnectionToken(pool, JWT_SECRET, row, connectionId)
+    if (rotated.error) return res.status(404).json({ error: rotated.error })
+    return res.json(agentMcpEnvPayload(req, rotated.token, rotated.connection))
+  } catch (e) {
+    console.error(e)
+    return res.status(500).json({ error: 'Erro ao gerar novo token.' })
+  }
+})
+
 app.patch('/api/settings/agent-connections/:id', authRequired, async (req, res) => {
   if (!requireOrgMatch(req, res, req.user.orgId)) return
   const connectionId = req.params.id
@@ -750,7 +773,7 @@ app.patch('/api/settings/agent-connections/:id', authRequired, async (req, res) 
        SET active = $1, revoked_at = $2
        WHERE id = $3 AND user_id = $4 AND organization_id = $5
        RETURNING *`,
-      [active, revokedAt, connectionId, req.user.sub, req.user.orgId],
+      [active, revokedAt, connectionId, req.user.sub, String(req.user.orgId)],
     )
     if (!rows[0]) return res.status(404).json({ error: 'Conexão não encontrada.' })
     return res.json({ connection: mapAgentConnection(rows[0]) })
@@ -766,8 +789,8 @@ app.delete('/api/settings/agent-connections/:id', authRequired, async (req, res)
   try {
     await ensureAgentConnectionsSchema(pool)
     const { rowCount } = await pool.query(
-      'DELETE FROM agent_connections WHERE id = $1 AND user_id = $2 AND organization_id = $3',
-      [connectionId, req.user.sub, req.user.orgId],
+      'DELETE FROM agent_connections WHERE id = $1 AND user_id = $2 AND organization_id = $3::uuid',
+      [connectionId, req.user.sub, String(req.user.orgId)],
     )
     if (!rowCount) return res.status(404).json({ error: 'Conexão não encontrada.' })
     return res.status(204).send()
