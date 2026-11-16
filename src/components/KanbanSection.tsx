@@ -87,7 +87,7 @@ function TaskCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`group relative cursor-grab touch-manipulation overflow-hidden rounded-xl border border-slate-200 bg-white p-3 pl-4 shadow-sm transition before:absolute before:inset-y-0 before:left-0 before:w-1 active:cursor-grabbing dark:border-slate-700 dark:bg-slate-800 ${stripe} ${
+      className={`group relative shrink-0 cursor-grab touch-manipulation overflow-hidden rounded-xl border border-slate-200 bg-white p-3 pl-4 shadow-sm transition before:absolute before:inset-y-0 before:left-0 before:w-1 active:cursor-grabbing dark:border-slate-700 dark:bg-slate-800 ${stripe} ${
         isDragging
           ? 'opacity-40 ring-2 ring-violet-300'
           : 'hover:border-slate-300 hover:shadow-md dark:hover:border-slate-500'
