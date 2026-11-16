@@ -1,19 +1,26 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *, [data-theme=dark] &, [data-theme=dark] *));
 
+/* Tokens de cor do app (usar como bg-app, bg-sidebar, bg-column). */
+@theme {
+  --color-app: #f4f5fa;
+  --color-sidebar: #f7f8fc;
+  --color-column: #eef1f7;
+}
+
 * {
   box-sizing: border-box;
 }
 
 html {
-  background: #f4f5fa;
+  background: var(--color-app);
   overscroll-behavior: none;
 }
 
 body {
   margin: 0;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  background: #f4f5fa;
+  background: var(--color-app);
   color: #0f172a;
   overscroll-behavior: none;
 }

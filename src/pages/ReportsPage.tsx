@@ -109,7 +109,7 @@ export function ReportsPage() {
       <section className="mb-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-4xl font-semibold">Relatórios</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">Relatórios</h1>
             <p className="text-slate-500 dark:text-slate-400">
               Conclusões usam a data de finalização; demais status usam a data de criação.
             </p>

@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ErrorBlock, LoadingBlock } from '../components/AsyncState'
 import { BoardTaskFilters } from '../components/BoardTaskFilters'
 import { KanbanSection } from '../components/KanbanSection'
 import { Layout } from '../components/Layout'
+import {
+  DropdownMenu,
+  IconDots,
+  Modal,
+  PageHeader,
+  type MenuItem,
+} from '../components/ui'
+import { buttonClass, inputClass, labelClass } from '../components/uiStyles'
 import { useBoards } from '../hooks/useBoards'
 import { useTasks } from '../hooks/useTasks'
 import {
@@ -18,14 +26,28 @@ import {
 import { useAuthStore } from '../store/authStore'
 import { useHeaderSearchStore } from '../store/headerSearchStore'
 import type { AppUser, TaskCategory } from '../types'
-import { defaultTaskFilters, filterTasks, type TaskFilters } from '../utils/filterTasks'
+import {
+  defaultTaskFilters,
+  filterTasks,
+  type TaskDueFilter,
+  type TaskFilters,
+} from '../utils/filterTasks'
 import { resolveDefaultAssigneeId, setLastAssigneeId } from '../utils/lastAssignee'
 import { taskPhase } from '../utils/taskStatus'
 
 const OTHER_CATEGORY = '__other__'
+const DUE_FILTERS: TaskDueFilter[] = ['all', 'with-due', 'no-due', 'overdue', 'next-7-days']
+
+function initialFilters(params: URLSearchParams): TaskFilters {
+  const due = params.get('prazo') as TaskDueFilter | null
+  return due && DUE_FILTERS.includes(due) ? { ...defaultTaskFilters, due } : defaultTaskFilters
+}
+
+type BoardNameDialog = { mode: 'create' | 'rename'; value: string } | null
 
 export function BoardsPage() {
   const { boardId: routeBoardId } = useParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const appUser = useAuthStore((state) => state.appUser)
   const isOwner = appUser?.role === 'owner'
@@ -44,13 +66,18 @@ export function BoardsPage() {
   useEffect(() => {
     if (boardsLoading || !boards.length) return
     if (routeBoardId && boards.some((b) => b.id === routeBoardId)) return
-    navigate(`/boards/${boards[0].id}`, { replace: true })
-  }, [boards, boardsLoading, routeBoardId, navigate])
+    const query = searchParams.toString()
+    navigate(`/boards/${boards[0].id}${query ? `?${query}` : ''}`, { replace: true })
+  }, [boards, boardsLoading, routeBoardId, navigate, searchParams])
 
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deletingBoard, setDeletingBoard] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [boardDialog, setBoardDialog] = useState<BoardNameDialog>(null)
+  const [boardDialogSaving, setBoardDialogSaving] = useState(false)
+  const [boardDialogError, setBoardDialogError] = useState('')
+  const [boardActionError, setBoardActionError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [title, setTitle] = useState('')
@@ -58,11 +85,11 @@ export function BoardsPage() {
   const [categorySelect, setCategorySelect] = useState(OTHER_CATEGORY)
   const [customLabel, setCustomLabel] = useState('')
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium')
-  const [dueDateInput, setDueDateInput] = useState('')
+  const [dueDate, setDueDate] = useState('')
   const [members, setMembers] = useState<AppUser[]>([])
   const [categories, setCategories] = useState<TaskCategory[]>([])
   const [assigneeId, setAssigneeId] = useState('')
-  const [taskFilters, setTaskFilters] = useState<TaskFilters>(defaultTaskFilters)
+  const [taskFilters, setTaskFilters] = useState<TaskFilters>(() => initialFilters(searchParams))
   const headerQuery = useHeaderSearchStore((s) => s.query)
   const setHeaderQuery = useHeaderSearchStore((s) => s.setQuery)
 
@@ -136,34 +163,16 @@ export function BoardsPage() {
     setAssigneeId(resolveDefaultAssigneeId(members, appUser?.organizationId, appUser?.id))
   }
 
-  function onDueDateInputChange(value: string) {
-    const digits = value.replace(/\D/g, '').slice(0, 8)
-    let out = ''
-    for (let i = 0; i < digits.length; i += 1) {
-      if (i === 2 || i === 4) {
-        out += '/'
-      }
-      out += digits[i]
-    }
-    setDueDateInput(out)
+  function openTaskModal() {
+    setSubmitError('')
+    resetCategoryFields()
+    resetAssigneeField()
+    setShowTaskModal(true)
   }
 
-  function parseDateFromPtBr(value: string) {
-    const normalized = value.trim()
-    const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(normalized)
-    if (!match) return null
-    const [, dd, mm, yyyy] = match
-    const iso = `${yyyy}-${mm}-${dd}`
-    const date = new Date(`${iso}T00:00:00`)
-    if (Number.isNaN(date.getTime())) return null
-    if (
-      date.getFullYear() !== Number(yyyy) ||
-      date.getMonth() + 1 !== Number(mm) ||
-      date.getDate() !== Number(dd)
-    ) {
-      return null
-    }
-    return iso
+  function closeTaskModal() {
+    setShowTaskModal(false)
+    setSubmitError('')
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -195,12 +204,6 @@ export function BoardsPage() {
       return
     }
 
-    const parsedDueDate = dueDateInput ? parseDateFromPtBr(dueDateInput) : null
-    if (dueDateInput && !parsedDueDate) {
-      setSubmitError('Data inválida. Use o formato dd/mm/aaaa.')
-      return
-    }
-
     try {
       setIsSubmitting(true)
       let activeBoardIdForTask = activeBoardId
@@ -217,7 +220,7 @@ export function BoardsPage() {
         description: description.trim(),
         label: resolvedLabel,
         priority,
-        dueDate: parsedDueDate || undefined,
+        dueDate: dueDate || undefined,
         assigneeName: assignee?.fullName,
         boardId: activeBoardIdForTask,
         organizationId: appUser.organizationId,
@@ -229,7 +232,7 @@ export function BoardsPage() {
       setDescription('')
       resetCategoryFields()
       setPriority('medium')
-      setDueDateInput('')
+      setDueDate('')
       resetAssigneeField()
       setShowTaskModal(false)
     } catch (error) {
@@ -239,28 +242,36 @@ export function BoardsPage() {
     }
   }
 
-  async function onCreateBoard() {
-    if (!appUser?.organizationId) return
-    const name = window.prompt('Nome do novo quadro:', 'Novo quadro')
-    if (!name?.trim()) return
-    try {
-      const created = await createBoard(name.trim(), appUser.organizationId)
-      await refetchBoards()
-      navigate(`/boards/${created.id}`)
-    } catch (e) {
-      window.alert(e instanceof Error ? e.message : 'Falha ao criar quadro.')
+  async function onSubmitBoardDialog(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!boardDialog || !appUser?.organizationId) return
+    const name = boardDialog.value.trim()
+    if (!name) {
+      setBoardDialogError('Informe um nome para o quadro.')
+      return
     }
-  }
-
-  async function onRenameBoard() {
-    if (!activeBoardId || !activeBoard) return
-    const name = window.prompt('Renomear quadro:', activeBoard.name)
-    if (!name?.trim() || name.trim() === activeBoard.name) return
+    setBoardDialogSaving(true)
+    setBoardDialogError('')
     try {
-      await updateBoard(activeBoardId, name.trim())
-      await refetchBoards()
+      if (boardDialog.mode === 'create') {
+        const created = await createBoard(name, appUser.organizationId)
+        await refetchBoards()
+        navigate(`/boards/${created.id}`)
+      } else if (activeBoardId && name !== activeBoard?.name) {
+        await updateBoard(activeBoardId, name)
+        await refetchBoards()
+      }
+      setBoardDialog(null)
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : 'Falha ao renomear quadro.')
+      setBoardDialogError(
+        e instanceof Error
+          ? e.message
+          : boardDialog.mode === 'create'
+            ? 'Falha ao criar quadro.'
+            : 'Falha ao renomear quadro.',
+      )
+    } finally {
+      setBoardDialogSaving(false)
     }
   }
 
@@ -282,98 +293,117 @@ export function BoardsPage() {
 
   async function onToggleFeatured() {
     if (!activeBoardId || !activeBoard || !isOwner) return
+    setBoardActionError('')
     try {
       await updateBoardFeatured(activeBoardId, !activeBoard.featured)
       await refetchBoards()
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : 'Falha ao atualizar destaque.')
+      setBoardActionError(e instanceof Error ? e.message : 'Falha ao atualizar destaque.')
     }
   }
 
+  const boardMenuItems: MenuItem[] = activeBoard
+    ? [
+        {
+          label: 'Renomear quadro',
+          onSelect: () => {
+            setBoardDialogError('')
+            setBoardDialog({ mode: 'rename', value: activeBoard.name })
+          },
+        },
+        ...(isOwner
+          ? [
+              {
+                label: activeBoard.featured ? 'Remover destaque do dashboard' : 'Destacar no dashboard',
+                onSelect: () => void onToggleFeatured(),
+              },
+              {
+                label: 'Excluir quadro',
+                tone: 'danger' as const,
+                onSelect: () => {
+                  setDeleteError('')
+                  setShowDeleteConfirm(true)
+                },
+              },
+            ]
+          : []),
+      ]
+    : []
+
   return (
     <Layout searchPlaceholder="Buscar tarefas...">
-      <section className="mb-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-semibold">Quadros</h1>
-            <p className="mt-1 text-slate-500 dark:text-slate-400">Kanban operacional da organização</p>
-          </div>
+      <PageHeader
+        title="Quadros"
+        subtitle="Kanban operacional da organização"
+        className="mb-5"
+        actions={
           <button
             type="button"
-            onClick={() => {
-              setSubmitError('')
-              resetCategoryFields()
-              resetAssigneeField()
-              setShowTaskModal(true)
-            }}
+            onClick={openTaskModal}
             disabled={!canCreateTask || !activeBoardId}
-            className="rounded-lg bg-violet-600 px-4 py-2 font-medium text-white disabled:opacity-50"
+            className={buttonClass.primary}
           >
-            + Nova Tarefa
+            <span aria-hidden="true">+</span> Nova tarefa
           </button>
-        </div>
-      </section>
+        }
+      />
 
       {boardsError && (
         <ErrorBlock message={boardsError} onRetry={() => void refetchBoards()} className="mb-4" />
+      )}
+      {boardActionError && (
+        <ErrorBlock message={boardActionError} onRetry={() => setBoardActionError('')} className="mb-4" />
       )}
 
       {boardsLoading ? (
         <LoadingBlock label="Carregando quadros..." className="mb-5" />
       ) : (
-        <section className="mb-5 flex flex-wrap items-center gap-2">
-          {boards.map((board) => (
-            <button
-              key={board.id}
-              type="button"
-              onClick={() => navigate(`/boards/${board.id}`)}
-              className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
-                board.id === activeBoardId
-                  ? 'border-violet-400 bg-violet-50 text-violet-800 dark:border-violet-600 dark:bg-violet-950 dark:text-violet-200'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
-              }`}
-            >
-              {board.name}
-              {board.featured ? ' ★' : ''}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => void onCreateBoard()}
-            className="rounded-lg border border-dashed border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:border-violet-400 hover:text-violet-700 dark:border-slate-600 dark:text-slate-400"
+        <section className="mb-4 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800">
+          <nav
+            aria-label="Quadros"
+            className="-mb-px flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
           >
-            + Novo quadro
-          </button>
-          {activeBoard && (
-            <div className="ml-auto flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void onRenameBoard()}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 dark:border-slate-700 dark:text-slate-300"
-              >
-                Renomear
-              </button>
-              {isOwner && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void onToggleFeatured()}
-                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 dark:border-slate-700 dark:text-slate-300"
-                  >
-                    {activeBoard.featured ? 'Remover destaque' : 'Destacar no dashboard'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDeleteError('')
-                      setShowDeleteConfirm(true)
-                    }}
-                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 dark:border-red-900 dark:text-red-400"
-                  >
-                    Excluir quadro
-                  </button>
-                </>
-              )}
+            {boards.map((board) => {
+              const active = board.id === activeBoardId
+              return (
+                <button
+                  key={board.id}
+                  type="button"
+                  onClick={() => navigate(`/boards/${board.id}`)}
+                  aria-current={active ? 'page' : undefined}
+                  className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition ${
+                    active
+                      ? 'border-violet-600 text-violet-700 dark:border-violet-400 dark:text-violet-300'
+                      : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {board.name}
+                  {board.featured && (
+                    <span className="ml-1 text-amber-500" title="Destacado no dashboard">
+                      ★
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              onClick={() => {
+                setBoardDialogError('')
+                setBoardDialog({ mode: 'create', value: '' })
+              }}
+              className="shrink-0 whitespace-nowrap px-3 py-2 text-sm text-slate-500 hover:text-violet-700 dark:text-slate-400 dark:hover:text-violet-300"
+            >
+              + Novo quadro
+            </button>
+          </nav>
+          {activeBoard && boardMenuItems.length > 0 && (
+            <div className="mb-1 shrink-0">
+              <DropdownMenu
+                trigger={<IconDots />}
+                triggerLabel={`Opções do quadro ${activeBoard.name}`}
+                items={boardMenuItems}
+              />
             </div>
           )}
         </section>
@@ -406,181 +436,204 @@ export function BoardsPage() {
         />
       )}
 
-      {showTaskModal && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 dark:bg-black/60">
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl dark:border dark:border-slate-700 dark:bg-slate-900">
-            <div className="mb-5 flex items-start justify-between">
-              <div>
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Nova Tarefa</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">A tarefa será criada na coluna A fazer.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowTaskModal(false)
-                  setSubmitError('')
-                }}
-                className="rounded bg-slate-100 px-2 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={onSubmit} className="grid gap-3 md:grid-cols-2">
-              <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Título</label>
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  required
-                  placeholder="Ex: Implementar fluxo de convite"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Descrição</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  placeholder="Descreva a tarefa com detalhes"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Categoria</label>
-                <select
-                  value={categorySelect}
-                  onChange={(e) => setCategorySelect(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                >
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.name}>
-                      {category.name}
-                    </option>
-                  ))}
-                  <option value={OTHER_CATEGORY}>Outros</option>
-                </select>
-                {showCustomLabel && (
-                  <input
-                    value={customLabel}
-                    onChange={(e) => setCustomLabel(e.target.value)}
-                    placeholder="Digite a categoria"
-                    className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                  />
-                )}
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Prioridade</label>
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                >
-                  <option value="low">Baixa</option>
-                  <option value="medium">Média</option>
-                  <option value="high">Alta</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Responsável <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={assigneeId}
-                  onChange={(e) => setAssigneeId(e.target.value)}
-                  required
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                >
-                  {members.length === 0 && <option value="">Nenhum membro disponível</option>}
-                  {members.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.fullName || member.email}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Prazo</label>
-                <input
-                  type="text"
-                  value={dueDateInput}
-                  onChange={(e) => onDueDateInputChange(e.target.value)}
-                  placeholder="dd/mm/aaaa"
-                  autoComplete="off"
-                  maxLength={10}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                />
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Formato: dd/mm/aaaa</p>
-              </div>
-
-              <div className="mt-2 flex items-center justify-end gap-2 md:col-span-2">
-                {submitError && (
-                  <p className="mr-auto text-sm text-red-600">{submitError}</p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowTaskModal(false)
-                    setSubmitError('')
-                  }}
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-slate-600 dark:border-slate-600 dark:text-slate-300"
-                >
-                  Cancelar
-                </button>
-                <button
-                  disabled={isSubmitting}
-                  className="rounded-lg bg-violet-600 px-4 py-2 text-white disabled:opacity-60"
-                >
-                  {isSubmitting ? 'Criando...' : 'Criar tarefa'}
-                </button>
-              </div>
-            </form>
+      <Modal
+        open={showTaskModal}
+        onClose={closeTaskModal}
+        dismissible={!isSubmitting}
+        size="lg"
+        title="Nova tarefa"
+        description="A tarefa será criada na coluna A fazer."
+        footer={
+          <>
+            {submitError && <p className="mr-auto text-sm text-red-600 dark:text-red-400">{submitError}</p>}
+            <button type="button" onClick={closeTaskModal} className={buttonClass.secondary}>
+              Cancelar
+            </button>
+            <button type="submit" form="new-task-form" disabled={isSubmitting} className={buttonClass.primary}>
+              {isSubmitting ? 'Criando...' : 'Criar tarefa'}
+            </button>
+          </>
+        }
+      >
+        <form id="new-task-form" onSubmit={onSubmit} className="grid gap-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <label htmlFor="new-task-title" className={labelClass}>
+              Título
+            </label>
+            <input
+              id="new-task-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              placeholder="Ex: Implementar fluxo de convite"
+              className={inputClass}
+            />
           </div>
-        </div>
-      )}
-
-      {showDeleteConfirm && activeBoard && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 dark:bg-black/60">
-          <div
-            role="alertdialog"
-            aria-labelledby="delete-board-title"
-            aria-describedby="delete-board-desc"
-            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:border dark:border-slate-700 dark:bg-slate-900"
-          >
-            <h2 id="delete-board-title" className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-              Excluir quadro?
-            </h2>
-            <p id="delete-board-desc" className="mt-3 text-sm text-slate-600 dark:text-slate-400">
-              Você está prestes a excluir o quadro{' '}
-              <strong className="text-slate-900 dark:text-slate-100">{activeBoard.name}</strong>. Todas as tarefas
-              deste quadro serão removidas permanentemente. Esta ação não pode ser desfeita.
-            </p>
-            {deleteError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{deleteError}</p>}
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                disabled={deletingBoard}
-                onClick={() => {
-                  setShowDeleteConfirm(false)
-                  setDeleteError('')
-                }}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 disabled:opacity-60 dark:border-slate-600 dark:text-slate-300"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={deletingBoard}
-                onClick={() => void onDeleteBoard()}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-              >
-                {deletingBoard ? 'Excluindo...' : 'Sim, excluir quadro'}
-              </button>
-            </div>
+          <div className="md:col-span-2">
+            <label htmlFor="new-task-description" className={labelClass}>
+              Descrição
+            </label>
+            <textarea
+              id="new-task-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder="Descreva a tarefa com detalhes"
+              className={inputClass}
+            />
           </div>
-        </div>
-      )}
+          <div>
+            <label htmlFor="new-task-category" className={labelClass}>
+              Categoria
+            </label>
+            <select
+              id="new-task-category"
+              value={categorySelect}
+              onChange={(e) => setCategorySelect(e.target.value)}
+              className={inputClass}
+            >
+              {categories.map((category) => (
+                <option key={category.id} value={category.name}>
+                  {category.name}
+                </option>
+              ))}
+              <option value={OTHER_CATEGORY}>Outros</option>
+            </select>
+            {showCustomLabel && (
+              <input
+                value={customLabel}
+                onChange={(e) => setCustomLabel(e.target.value)}
+                placeholder="Digite a categoria"
+                aria-label="Nome da categoria"
+                className={`mt-2 ${inputClass}`}
+              />
+            )}
+          </div>
+          <div>
+            <label htmlFor="new-task-priority" className={labelClass}>
+              Prioridade
+            </label>
+            <select
+              id="new-task-priority"
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
+              className={inputClass}
+            >
+              <option value="low">Baixa</option>
+              <option value="medium">Média</option>
+              <option value="high">Alta</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="new-task-assignee" className={labelClass}>
+              Responsável <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="new-task-assignee"
+              value={assigneeId}
+              onChange={(e) => setAssigneeId(e.target.value)}
+              required
+              className={inputClass}
+            >
+              {members.length === 0 && <option value="">Nenhum membro disponível</option>}
+              {members.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.fullName || member.email}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="new-task-due" className={labelClass}>
+              Prazo
+            </label>
+            <input
+              id="new-task-due"
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={boardDialog !== null}
+        onClose={() => setBoardDialog(null)}
+        dismissible={!boardDialogSaving}
+        size="sm"
+        title={boardDialog?.mode === 'rename' ? 'Renomear quadro' : 'Novo quadro'}
+        footer={
+          <>
+            {boardDialogError && (
+              <p className="mr-auto text-sm text-red-600 dark:text-red-400">{boardDialogError}</p>
+            )}
+            <button type="button" onClick={() => setBoardDialog(null)} className={buttonClass.secondary}>
+              Cancelar
+            </button>
+            <button type="submit" form="board-name-form" disabled={boardDialogSaving} className={buttonClass.primary}>
+              {boardDialogSaving ? 'Salvando...' : boardDialog?.mode === 'rename' ? 'Salvar' : 'Criar quadro'}
+            </button>
+          </>
+        }
+      >
+        <form id="board-name-form" onSubmit={onSubmitBoardDialog}>
+          <label htmlFor="board-name" className={labelClass}>
+            Nome do quadro
+          </label>
+          <input
+            id="board-name"
+            value={boardDialog?.value ?? ''}
+            onChange={(e) => setBoardDialog((prev) => (prev ? { ...prev, value: e.target.value } : prev))}
+            placeholder="Ex: Marketing"
+            className={inputClass}
+          />
+        </form>
+      </Modal>
+
+      <Modal
+        open={showDeleteConfirm && Boolean(activeBoard)}
+        onClose={() => {
+          setShowDeleteConfirm(false)
+          setDeleteError('')
+        }}
+        dismissible={!deletingBoard}
+        role="alertdialog"
+        size="sm"
+        title="Excluir quadro?"
+        footer={
+          <>
+            <button
+              type="button"
+              disabled={deletingBoard}
+              onClick={() => {
+                setShowDeleteConfirm(false)
+                setDeleteError('')
+              }}
+              className={buttonClass.secondary}
+              data-autofocus
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={deletingBoard}
+              onClick={() => void onDeleteBoard()}
+              className={buttonClass.danger}
+            >
+              {deletingBoard ? 'Excluindo...' : 'Sim, excluir quadro'}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Você está prestes a excluir o quadro{' '}
+          <strong className="text-slate-900 dark:text-slate-100">{activeBoard?.name}</strong>. Todas as tarefas
+          deste quadro serão removidas permanentemente. Esta ação não pode ser desfeita.
+        </p>
+        {deleteError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{deleteError}</p>}
+      </Modal>
     </Layout>
   )
 }

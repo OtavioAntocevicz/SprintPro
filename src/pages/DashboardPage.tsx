@@ -6,20 +6,25 @@ import { Layout } from '../components/Layout'
 import { useFavoriteTasks } from '../hooks/useFavoriteTasks'
 import { useBoards } from '../hooks/useBoards'
 import { useOrgTaskStats } from '../hooks/useOrgTaskStats'
-import { useOnlineUsers } from '../hooks/useOnlineUsers'
 import { useAuthStore } from '../store/authStore'
 import { taskPriorityLabel } from '../utils/taskPriorityLabel'
 import type { Task } from '../types'
+import { Avatar, PageHeader, SectionTitle } from '../components/ui'
+import { cardClass } from '../components/uiStyles'
+import { formatDueDate } from '../utils/taskDue'
 
 function DueTaskRow({ task, tone }: { task: Task; tone: 'overdue' | 'upcoming' }) {
   return (
     <article className="flex items-start justify-between gap-3 border-b border-slate-100 py-3 last:border-0 dark:border-slate-800">
-      <div className="min-w-0">
+      <div className="flex min-w-0 items-start gap-2.5">
+        <Avatar name={task.assigneeName} size="md" className="mt-0.5" />
+        <div className="min-w-0">
         <p className="truncate font-medium text-slate-900 dark:text-slate-100">{task.title}</p>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
           {task.assigneeName ?? 'Sem responsável'}
           {task.label ? ` · ${task.label}` : ''}
         </p>
+        </div>
       </div>
       <div className="shrink-0 text-right">
         <p
@@ -29,14 +34,55 @@ function DueTaskRow({ task, tone }: { task: Task; tone: 'overdue' | 'upcoming' }
               : 'text-amber-600 dark:text-amber-400'
           }`}
         >
-          {task.dueDate
-            ? new Date(`${task.dueDate}T00:00:00`).toLocaleDateString('pt-BR')
-            : '—'}
+          {formatDueDate(task.dueDate)}
         </p>
         {task.priority && (
           <p className="text-[11px] text-slate-400">{taskPriorityLabel(task.priority)}</p>
         )}
       </div>
+    </article>
+  )
+}
+
+const STAT_TONES = {
+  violet: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
+  amber: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  emerald: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+} as const
+
+function StatCard({
+  to,
+  label,
+  value,
+  tone,
+  icon,
+  extra,
+}: {
+  to: string
+  label: string
+  value: number
+  tone: keyof typeof STAT_TONES
+  icon: React.ReactNode
+  extra?: React.ReactNode
+}) {
+  return (
+    <article className={`${cardClass} relative transition hover:border-violet-300 hover:shadow-sm dark:hover:border-violet-700`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <Link to={to} className="after:absolute after:inset-0 focus:outline-none">
+              {label}
+            </Link>
+          </p>
+          <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
+        </div>
+        <span className={`grid h-10 w-10 place-items-center rounded-xl ${STAT_TONES[tone]}`} aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {icon}
+          </svg>
+        </span>
+      </div>
+      {extra && <div className="relative z-10">{extra}</div>}
     </article>
   )
 }
@@ -48,7 +94,6 @@ export function DashboardPage() {
     appUser?.organizationId,
   )
   const { boards, loading: boardsLoading } = useBoards(appUser?.organizationId)
-  const onlineUsers = useOnlineUsers(appUser?.organizationId)
   const [hiddenFavoriteIds, setHiddenFavoriteIds] = useState<Set<string>>(() => new Set())
   const [favoriteActionError, setFavoriteActionError] = useState('')
 
@@ -81,14 +126,11 @@ export function DashboardPage() {
 
   return (
     <Layout searchPlaceholder="Buscar tarefas...">
-      <section>
-        <h1 className="text-4xl font-semibold tracking-tight">
-          Olá, {appUser?.fullName?.split(' ')[0] ?? 'Gestor'}
-        </h1>
-        <p className="mt-2 text-slate-500 dark:text-slate-400">
-          Resumo do workspace e prazos que pedem atenção.
-        </p>
-      </section>
+      <PageHeader
+        className="mb-0"
+        title={`Olá, ${appUser?.fullName?.split(' ')[0] ?? 'Gestor'}`}
+        subtitle="Resumo do workspace e prazos que pedem atenção."
+      />
 
       {stats.error && (
         <div className="mt-4">
@@ -103,29 +145,48 @@ export function DashboardPage() {
       ) : (
         <>
           <section className="mt-6 grid gap-4 md:grid-cols-3">
-            <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-              <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Tarefas ativas</p>
-              <p className="mt-2 text-4xl font-bold">{stats.totalActiveTasks}</p>
-            </article>
-            <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-              <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Próximos 7 dias</p>
-              <p className="mt-2 text-4xl font-bold">{stats.upcomingDeadlines}</p>
-              {stats.overdueCount > 0 && (
-                <p className="mt-1 text-sm font-medium text-red-600 dark:text-red-400">
-                  {stats.overdueCount} atrasada{stats.overdueCount === 1 ? '' : 's'}
-                </p>
-              )}
-            </article>
-            <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-              <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Online agora</p>
-              <p className="mt-2 text-4xl font-bold">{onlineUsers.length}</p>
-            </article>
+            <StatCard
+              to="/boards"
+              label="Tarefas ativas"
+              value={stats.totalActiveTasks}
+              tone="violet"
+              icon={<path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />}
+            />
+            <StatCard
+              to="/boards?prazo=next-7-days"
+              label="Próximos 7 dias"
+              value={stats.upcomingDeadlines}
+              tone="amber"
+              icon={
+                <>
+                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                  <path d="M16 2v4M8 2v4M3 10h18" />
+                </>
+              }
+              extra={
+                stats.overdueCount > 0 ? (
+                  <Link
+                    to="/boards?prazo=overdue"
+                    className="mt-1 inline-block text-sm font-medium text-red-600 hover:underline dark:text-red-400"
+                  >
+                    {stats.overdueCount} atrasada{stats.overdueCount === 1 ? '' : 's'}
+                  </Link>
+                ) : null
+              }
+            />
+            <StatCard
+              to="/boards"
+              label="Em progresso"
+              value={stats.inProgressCount}
+              tone="emerald"
+              icon={<path d="M22 12h-4l-3 9L9 3l-3 9H2" />}
+            />
           </section>
 
           {!boardsLoading && quickBoards.length > 0 && (
             <section className="mt-7">
-              <h2 className="text-lg font-semibold">Quadros</h2>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <SectionTitle title="Quadros" />
+              <div className="flex flex-wrap gap-2">
                 {quickBoards.map((board) => (
                   <Link
                     key={board.id}
@@ -141,16 +202,19 @@ export function DashboardPage() {
           )}
 
           <section className="mt-7 grid gap-4 lg:grid-cols-2">
-            <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-              <div className="mb-2 flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold">Atrasadas</h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Prazos já vencidos</p>
-                </div>
-                <Link to="/boards" className="text-sm font-medium text-violet-600 hover:underline dark:text-violet-400">
-                  Ver quadros
-                </Link>
-              </div>
+            <article className={cardClass}>
+              <SectionTitle
+                title="Atrasadas"
+                subtitle="Prazos já vencidos"
+                action={
+                  <Link
+                    to="/boards?prazo=overdue"
+                    className="text-sm font-medium text-violet-600 hover:underline dark:text-violet-400"
+                  >
+                    Ver todas
+                  </Link>
+                }
+              />
               {stats.overdueTasks.length === 0 ? (
                 <p className="py-6 text-sm text-slate-500 dark:text-slate-400">Nenhuma tarefa atrasada.</p>
               ) : (
@@ -162,16 +226,19 @@ export function DashboardPage() {
               )}
             </article>
 
-            <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-              <div className="mb-2 flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold">Próximos prazos</h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Nos próximos 7 dias</p>
-                </div>
-                <Link to="/boards" className="text-sm font-medium text-violet-600 hover:underline dark:text-violet-400">
-                  Ver quadros
-                </Link>
-              </div>
+            <article className={cardClass}>
+              <SectionTitle
+                title="Próximos prazos"
+                subtitle="Nos próximos 7 dias"
+                action={
+                  <Link
+                    to="/boards?prazo=next-7-days"
+                    className="text-sm font-medium text-violet-600 hover:underline dark:text-violet-400"
+                  >
+                    Ver todas
+                  </Link>
+                }
+              />
               {stats.upcomingTasks.length === 0 ? (
                 <p className="py-6 text-sm text-slate-500 dark:text-slate-400">Nenhum prazo nos próximos 7 dias.</p>
               ) : (
@@ -187,10 +254,7 @@ export function DashboardPage() {
       )}
 
       <section className="mt-7">
-        <div className="mb-4">
-          <h2 className="text-2xl font-semibold">Favoritos</h2>
-          <p className="text-slate-500 dark:text-slate-400">Tarefas marcadas com estrela para acesso rápido.</p>
-        </div>
+        <SectionTitle title="Favoritos" subtitle="Tarefas marcadas com estrela para acesso rápido." />
 
         {favError && <ErrorBlock message={favError} onRetry={() => void refetchFav()} className="mb-4" />}
         {favoriteActionError && (

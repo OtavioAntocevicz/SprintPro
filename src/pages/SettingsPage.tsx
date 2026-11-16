@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { ErrorBlock, LoadingBlock } from '../components/AsyncState'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Layout } from '../components/Layout'
+import { PageHeader } from '../components/ui'
 import {
   changePassword,
   createAgentConnection,
@@ -33,6 +34,19 @@ type McpTokenReveal = {
   token: string
   mcpEnv: AgentMcpCreateResponse['mcpEnv']
   reason: 'create' | 'regenerate'
+}
+
+const SETTINGS_TABS = [
+  { id: 'perfil', label: 'Perfil e organização', hint: 'Nome, empresa' },
+  { id: 'equipe', label: 'Equipe e categorias', hint: 'Membros, categorias de tarefa' },
+  { id: 'integracoes', label: 'Integrações', hint: 'Conexões MCP, aplicativo' },
+  { id: 'seguranca', label: 'Segurança', hint: 'Senha, sessão, conta' },
+] as const
+
+type SettingsTab = (typeof SETTINGS_TABS)[number]['id']
+
+function isSettingsTab(value: string | null): value is SettingsTab {
+  return SETTINGS_TABS.some((item) => item.id === value)
 }
 
 function formatLastSeen(lastSeenAt?: string) {
@@ -70,6 +84,13 @@ export function SettingsPage() {
   const [highlightConnectionId, setHighlightConnectionId] = useState<string | null>(null)
   const tokenPanelRef = useRef<HTMLDivElement | null>(null)
   const pwa = usePwaInstall()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = searchParams.get('aba')
+  const tab: SettingsTab = isSettingsTab(tabParam) ? tabParam : 'perfil'
+
+  function selectTab(next: SettingsTab) {
+    setSearchParams(next === 'perfil' ? {} : { aba: next }, { replace: true })
+  }
 
   async function loadAgentConnections() {
     if (!appUser?.id) return
@@ -365,482 +386,526 @@ export function SettingsPage() {
 
   return (
     <Layout showSearch={false}>
-      <section className="mb-6">
-        <h1 className="text-4xl font-semibold">Configurações</h1>
-        <p className="text-slate-500 dark:text-slate-400">Gerencie perfil, organização, equipe e segurança da conta.</p>
-      </section>
+      <PageHeader title="Configurações" subtitle="Gerencie perfil, organização, equipe e segurança da conta." />
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-          <h2 className="text-lg font-semibold">Perfil</h2>
-          <form onSubmit={onSaveProfile} className="mt-3 space-y-3">
-            <div>
-              <label className="text-sm text-slate-600 dark:text-slate-400">Nome completo</label>
-              <input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                placeholder={appUser?.fullName ?? ''}
-              />
-            </div>
-            <div>
-              <label className="text-sm text-slate-600 dark:text-slate-400">Email</label>
-              <input
-                value={appUser?.email ?? ''}
-                readOnly
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
-              />
-            </div>
-            <div>
-              <label className="text-sm text-slate-600 dark:text-slate-400">Função</label>
-              <input
-                value={userRoleLabel(appUser?.role)}
-                readOnly
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
-              />
-            </div>
-            <button className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white">
-              Salvar perfil
-            </button>
-          </form>
-        </article>
+      {feedback && (
+        <div
+          role="status"
+          className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 dark:border-violet-900 dark:bg-violet-950/60 dark:text-violet-200"
+        >
+          <p>{feedback}</p>
+          <button
+            type="button"
+            onClick={() => setFeedback('')}
+            aria-label="Fechar aviso"
+            className="text-violet-500 hover:text-violet-700 dark:hover:text-violet-300"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-          <h2 className="text-lg font-semibold">Organização</h2>
-          <form onSubmit={onSaveOrg} className="mt-3 space-y-3">
-            <div>
-              <label className="text-sm text-slate-600 dark:text-slate-400">Nome da empresa</label>
-              <input
-                value={orgName}
-                onChange={(e) => setOrgName(e.target.value)}
-                disabled={!isOwner}
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 disabled:bg-slate-50 disabled:text-slate-400 dark:disabled:bg-slate-900 dark:disabled:text-slate-500"
-                placeholder={appUser?.organizationName ?? ''}
-              />
-            </div>
-            <div>
-              <label className="text-sm text-slate-600 dark:text-slate-400">Plano</label>
-              <input
-                value="MVP Free"
-                readOnly
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
-              />
-            </div>
-            <div>
-              <label className="text-sm text-slate-600 dark:text-slate-400">ID da Organização</label>
-              <input
-                value={appUser?.organizationId ?? ''}
-                readOnly
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
-              />
-            </div>
-            <button
-              disabled={!isOwner}
-              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              Salvar organização
-            </button>
-          </form>
-        </article>
-      </section>
-
-      <section className="mt-4">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-          <h2 className="text-lg font-semibold">Aplicativo (PWA)</h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Instale o SprintPro no computador ou celular para abrir como app, com ícone na área de trabalho ou tela
-            inicial.
-          </p>
-
-          {pwa.installed ? (
-            <p className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-              ✓ SprintPro já está instalado neste dispositivo
-            </p>
-          ) : (
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  pwa.clearFeedback()
-                  void pwa.install()
-                }}
-                disabled={pwa.installing}
-                className="rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-              >
-                {pwa.installing ? 'Instalando...' : 'Instalar SprintPro'}
-              </button>
-              {pwa.canPromptInstall && (
-                <span className="text-xs text-emerald-600 dark:text-emerald-400">Pronto para instalar</span>
-              )}
-            </div>
-          )}
-
-          {pwa.isIos && !pwa.installed && (
-            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-              iOS: Safari → Compartilhar → Adicionar à Tela de Início.
-            </p>
-          )}
-
-          {pwa.feedback && (
-            <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">{pwa.feedback}</p>
-          )}
-        </article>
-      </section>
-
-      <section className="mt-4">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-          <h2 className="text-lg font-semibold">Categorias</h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Pré-defina lojas ou áreas (ex.: Toyama, Aquabrazil) para agilizar a criação e o filtro de tarefas.
-          </p>
-
-          {isOwner && (
-            <form onSubmit={onAddCategory} className="mt-3 flex flex-wrap gap-2">
-              <input
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                placeholder="Nome da categoria"
-                className="min-w-[12rem] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-              />
-              <button
-                type="submit"
-                disabled={categoryBusy || !newCategoryName.trim()}
-                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-              >
-                Adicionar
-              </button>
-            </form>
-          )}
-
-          {categories.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-              Nenhuma categoria cadastrada. Cadastre lojas ou áreas para agilizar a criação de tarefas.
-            </p>
-          ) : (
-            <ul className="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
-              {categories.map((category) => (
-                <li key={category.id} className="flex flex-wrap items-center gap-2 py-3">
-                  {editingCategoryId === category.id ? (
-                    <>
-                      <input
-                        value={editingCategoryName}
-                        onChange={(e) => setEditingCategoryName(e.target.value)}
-                        className="min-w-[10rem] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                      />
-                      <button
-                        type="button"
-                        disabled={categoryBusy || !editingCategoryName.trim()}
-                        onClick={() => void onSaveCategoryEdit(category.id)}
-                        className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
-                      >
-                        Salvar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingCategoryId(null)
-                          setEditingCategoryName('')
-                        }}
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-300"
-                      >
-                        Cancelar
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <span className="flex-1 text-sm font-medium text-slate-800 dark:text-slate-200">
-                        {category.name}
-                      </span>
-                      {isOwner && (
-                        <>
-                          <button
-                            type="button"
-                            disabled={categoryBusy}
-                            onClick={() => {
-                              setEditingCategoryId(category.id)
-                              setEditingCategoryName(category.name)
-                            }}
-                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-300"
-                          >
-                            Renomear
-                          </button>
-                          <button
-                            type="button"
-                            disabled={categoryBusy}
-                            onClick={() => void onDeleteCategory(category)}
-                            className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 dark:bg-red-950 dark:text-red-400"
-                          >
-                            Excluir
-                          </button>
-                        </>
-                      )}
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </article>
-      </section>
-
-      <section className="mt-4">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">Conexões MCP (agentes)</h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Conexões desta conta ({appUser?.email}). Cursor, GrokBot e outros agentes com o servidor
-                SprintPro MCP.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                disabled={mcpLoading || mcpBusy}
-                onClick={() => void loadAgentConnections()}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs dark:border-slate-600"
-              >
-                Atualizar lista
-              </button>
-              <div className="rounded-full bg-violet-100 px-3 py-1 text-sm font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">
-                {agentCounts.active} ativa{agentCounts.active === 1 ? '' : 's'} · {agentCounts.total} no total
-              </div>
-            </div>
-          </div>
-
-          {mcpMessage && (
-            <p className="mt-3 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-              {mcpMessage}
-            </p>
-          )}
-
-          <form onSubmit={onCreateMcpConnection} className="mt-4 flex flex-wrap items-end gap-2">
-            <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-xs text-slate-600 dark:text-slate-400">
-              Nome da conexão
-              <input
-                value={newMcpLabel}
-                onChange={(e) => setNewMcpLabel(e.target.value)}
-                placeholder="Ex.: Cursor, GrokBot"
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={mcpBusy}
-              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              {mcpBusy ? 'Aguarde…' : 'Nova conexão'}
-            </button>
-          </form>
-
-          {tokenReveal && (
-            <div
-              ref={tokenPanelRef}
-              className="mt-4 rounded-xl border border-amber-300 bg-amber-50/95 p-4 dark:border-amber-800 dark:bg-amber-950/50"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
-                    {tokenReveal.reason === 'create' ? 'Nova conexão' : 'Novo token'} —{' '}
-                    {tokenReveal.connectionLabel}
-                  </p>
-                  <p className="mt-1 text-xs text-amber-900/90 dark:text-amber-200/90">
-                    Válido por 365 dias. Guarde em local seguro; não será mostrado de novo nesta tela.
-                  </p>
-                </div>
+      <div className="grid gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]">
+        <nav aria-label="Seções de configurações" className="lg:sticky lg:top-24 lg:self-start">
+          <ul className="flex gap-1 overflow-x-auto lg:flex-col">
+            {SETTINGS_TABS.map((item) => (
+              <li key={item.id}>
                 <button
                   type="button"
-                  onClick={() => setTokenReveal(null)}
-                  className="text-xs text-amber-900 underline dark:text-amber-200"
+                  onClick={() => selectTab(item.id)}
+                  aria-current={tab === item.id ? 'page' : undefined}
+                  className={`w-full whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
+                    tab === item.id
+                      ? 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300'
+                      : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                  }`}
                 >
-                  Já copiei, fechar
+                  {item.label}
+                  <span className="mt-0.5 hidden text-xs font-normal text-slate-500 lg:block dark:text-slate-400">
+                    {item.hint}
+                  </span>
                 </button>
-              </div>
-              <label className="mt-3 block text-xs font-medium text-amber-950 dark:text-amber-100">
-                Token (SPRINTPRO_TOKEN)
-                <textarea
-                  readOnly
-                  value={tokenReveal.token}
-                  rows={3}
-                  className="mt-1 w-full rounded-lg border border-amber-200 bg-white px-2 py-2 font-mono text-[11px] dark:border-amber-800 dark:bg-slate-950"
-                  onFocus={(e) => e.currentTarget.select()}
-                />
-              </label>
-              <label className="mt-2 block text-xs font-medium text-amber-950 dark:text-amber-100">
-                Variáveis para o agente
-                <textarea
-                  readOnly
-                  value={mcpEnvText}
-                  rows={2}
-                  className="mt-1 w-full rounded-lg border border-amber-200 bg-white px-2 py-2 font-mono text-[11px] dark:border-amber-800 dark:bg-slate-950"
-                  onFocus={(e) => e.currentTarget.select()}
-                />
-              </label>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => void copyText(tokenReveal.token, 'Token copiado.')}
-                  className="rounded-lg bg-amber-800 px-3 py-1.5 text-xs font-medium text-white dark:bg-amber-700"
-                >
-                  Copiar token
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void copyText(mcpEnvText, 'Variáveis copiadas.')}
-                  className="rounded-lg border border-amber-700 px-3 py-1.5 text-xs text-amber-950 dark:text-amber-100"
-                >
-                  Copiar env
-                </button>
-              </div>
-            </div>
-          )}
-
-          {mcpLoading ? (
-            <LoadingBlock label="Carregando conexões MCP…" className="mt-4 py-8" />
-          ) : mcpError ? (
-            <ErrorBlock message={mcpError} onRetry={() => void loadAgentConnections()} className="mt-4" />
-          ) : agentConnections.length === 0 ? (
-            <div className="mt-4 space-y-2 text-sm text-slate-500 dark:text-slate-400">
-              <p>Nenhuma conexão registrada para esta conta.</p>
-              <p className="text-xs">
-                Se o agente já funciona com um token antigo (antes do registro na lista), crie uma nova
-                conexão aqui ou use <strong>Novo token</strong> após criar — tokens antigos sem registro não
-                aparecem nesta lista.
-              </p>
-            </div>
-          ) : (
-            <ul className="mt-4 divide-y divide-slate-200 dark:divide-slate-700">
-              {agentConnections.map((connection) => {
-                const isLive = connection.active && !connection.revokedAt
-                const highlighted = highlightConnectionId === connection.id
-                return (
-                  <li
-                    key={connection.id}
-                    className={`flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 ${
-                      highlighted ? 'rounded-lg bg-violet-50/80 px-2 dark:bg-violet-950/30' : ''
-                    }`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-slate-900 dark:text-slate-100">{connection.label}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Criada em {formatLastSeen(connection.createdAt)}
-                        {connection.lastUsedAt
-                          ? ` · Último uso ${formatLastSeen(connection.lastUsedAt)}`
-                          : ' · Ainda não usada'}
-                      </p>
-                    </div>
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        isLive
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                          : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      {isLive ? 'Ativa' : 'Desativada'}
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        disabled={mcpBusy}
-                        onClick={() => void onRegenerateMcpToken(connection)}
-                        className="rounded-lg border border-violet-300 px-3 py-1.5 text-xs text-violet-800 dark:border-violet-700 dark:text-violet-200"
-                      >
-                        Novo token
-                      </button>
-                      <button
-                        type="button"
-                        disabled={mcpBusy}
-                        onClick={() => void onToggleMcpConnection(connection)}
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs dark:border-slate-600"
-                      >
-                        {isLive ? 'Desativar' : 'Reativar'}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={mcpBusy}
-                        onClick={() => void onDeleteMcpConnection(connection)}
-                        className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 dark:bg-red-950 dark:text-red-400"
-                      >
-                        Excluir
-                      </button>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </article>
-      </section>
-
-      <section className="mt-4 grid gap-4 md:grid-cols-2">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-          <h2 className="text-lg font-semibold">Equipe e permissões</h2>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            Atalho: <Link to="/members" className="font-medium text-violet-600 hover:underline dark:text-violet-400">Abrir Membros</Link>
-          </p>
-          <ul className="mt-3 space-y-1 text-sm text-slate-700 dark:text-slate-300">
-            <li>Total de membros: {members.length}</li>
-            <li>Com permissão de favoritar: {membersWithFavoritePermission}</li>
+              </li>
+            ))}
           </ul>
-        </article>
+        </nav>
 
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-          <h2 className="text-lg font-semibold">Segurança</h2>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            Último acesso da conta atual: {formatLastSeen(appUser?.lastSeenAt)}
-          </p>
-          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-            Tokens de agentes MCP são geridos na seção <strong>Conexões MCP</strong> acima.
-          </p>
-          <form onSubmit={onChangePassword} className="mt-3 space-y-2">
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="Senha atual"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-            />
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Nova senha"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-            />
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirmar nova senha"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-            />
-            <p className="text-xs text-slate-500 dark:text-slate-400">Use pelo menos 8 caracteres com letras e números.</p>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <button className="rounded-lg bg-violet-600 px-3 py-2 text-xs font-medium text-white">
-                Alterar senha
-              </button>
-              <button
-                type="button"
-                onClick={() => logout()}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:text-slate-300"
-              >
-                Encerrar sessão
-              </button>
-              <button
-                type="button"
-                disabled={!isOwner}
-                onClick={() => void onDeleteMainAccount()}
-                className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600 disabled:opacity-50 dark:bg-red-950 dark:text-red-400"
-                title="Exclui empresa, colaboradores e dados da organização"
-              >
-                Excluir conta principal
-              </button>
-            </div>
-          </form>
-        </article>
-      </section>
+        <div className="min-w-0 space-y-4">
+          {tab === 'perfil' && (
+            <>
+              <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="text-lg font-semibold">Perfil</h2>
+                <form onSubmit={onSaveProfile} className="mt-3 space-y-3">
+                  <div>
+                    <label className="text-sm text-slate-600 dark:text-slate-400">Nome completo</label>
+                    <input
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                      placeholder={appUser?.fullName ?? ''}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-slate-600 dark:text-slate-400">Email</label>
+                    <input
+                      value={appUser?.email ?? ''}
+                      readOnly
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-slate-600 dark:text-slate-400">Função</label>
+                    <input
+                      value={userRoleLabel(appUser?.role)}
+                      readOnly
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                    />
+                  </div>
+                  <button className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white">
+                    Salvar perfil
+                  </button>
+                </form>
+              </article>
 
-      {feedback && <p className="mt-4 text-sm text-slate-600 dark:text-slate-400">{feedback}</p>}
+              <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="text-lg font-semibold">Organização</h2>
+                <form onSubmit={onSaveOrg} className="mt-3 space-y-3">
+                  <div>
+                    <label className="text-sm text-slate-600 dark:text-slate-400">Nome da empresa</label>
+                    <input
+                      value={orgName}
+                      onChange={(e) => setOrgName(e.target.value)}
+                      disabled={!isOwner}
+                      className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 disabled:bg-slate-50 disabled:text-slate-400 dark:disabled:bg-slate-900 dark:disabled:text-slate-500"
+                      placeholder={appUser?.organizationName ?? ''}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-slate-600 dark:text-slate-400">Plano</label>
+                    <input
+                      value="MVP Free"
+                      readOnly
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-slate-600 dark:text-slate-400">ID da Organização</label>
+                    <input
+                      value={appUser?.organizationId ?? ''}
+                      readOnly
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                    />
+                  </div>
+                  <button
+                    disabled={!isOwner}
+                    className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  >
+                    Salvar organização
+                  </button>
+                </form>
+              </article>
+            </>
+          )}
+
+          {tab === 'equipe' && (
+            <>
+              <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="text-lg font-semibold">Equipe e permissões</h2>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                  Atalho: <Link to="/members" className="font-medium text-violet-600 hover:underline dark:text-violet-400">Abrir Membros</Link>
+                </p>
+                <ul className="mt-3 space-y-1 text-sm text-slate-700 dark:text-slate-300">
+                  <li>Total de membros: {members.length}</li>
+                  <li>Com permissão de favoritar: {membersWithFavoritePermission}</li>
+                </ul>
+              </article>
+
+              <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="text-lg font-semibold">Categorias</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Pré-defina lojas ou áreas (ex.: Toyama, Aquabrazil) para agilizar a criação e o filtro de tarefas.
+                </p>
+
+                {isOwner && (
+                  <form onSubmit={onAddCategory} className="mt-3 flex flex-wrap gap-2">
+                    <input
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Nome da categoria"
+                      className="min-w-[12rem] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    />
+                    <button
+                      type="submit"
+                      disabled={categoryBusy || !newCategoryName.trim()}
+                      className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    >
+                      Adicionar
+                    </button>
+                  </form>
+                )}
+
+                {categories.length === 0 ? (
+                  <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                    Nenhuma categoria cadastrada. Cadastre lojas ou áreas para agilizar a criação de tarefas.
+                  </p>
+                ) : (
+                  <ul className="mt-4 divide-y divide-slate-100 dark:divide-slate-800">
+                    {categories.map((category) => (
+                      <li key={category.id} className="flex flex-wrap items-center gap-2 py-3">
+                        {editingCategoryId === category.id ? (
+                          <>
+                            <input
+                              value={editingCategoryName}
+                              onChange={(e) => setEditingCategoryName(e.target.value)}
+                              className="min-w-[10rem] flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                            />
+                            <button
+                              type="button"
+                              disabled={categoryBusy || !editingCategoryName.trim()}
+                              onClick={() => void onSaveCategoryEdit(category.id)}
+                              className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                            >
+                              Salvar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCategoryId(null)
+                                setEditingCategoryName('')
+                              }}
+                              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-300"
+                            >
+                              Cancelar
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="flex-1 text-sm font-medium text-slate-800 dark:text-slate-200">
+                              {category.name}
+                            </span>
+                            {isOwner && (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={categoryBusy}
+                                  onClick={() => {
+                                    setEditingCategoryId(category.id)
+                                    setEditingCategoryName(category.name)
+                                  }}
+                                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-300"
+                                >
+                                  Renomear
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={categoryBusy}
+                                  onClick={() => void onDeleteCategory(category)}
+                                  className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 dark:bg-red-950 dark:text-red-400"
+                                >
+                                  Excluir
+                                </button>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </article>
+            </>
+          )}
+
+          {tab === 'integracoes' && (
+            <>
+              <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">Conexões MCP (agentes)</h2>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                      Conexões desta conta ({appUser?.email}). Cursor, GrokBot e outros agentes com o servidor
+                      SprintPro MCP.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={mcpLoading || mcpBusy}
+                      onClick={() => void loadAgentConnections()}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs dark:border-slate-600"
+                    >
+                      Atualizar lista
+                    </button>
+                    <div className="rounded-full bg-violet-100 px-3 py-1 text-sm font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-200">
+                      {agentCounts.active} ativa{agentCounts.active === 1 ? '' : 's'} · {agentCounts.total} no total
+                    </div>
+                  </div>
+                </div>
+
+                {mcpMessage && (
+                  <p className="mt-3 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                    {mcpMessage}
+                  </p>
+                )}
+
+                <form onSubmit={onCreateMcpConnection} className="mt-4 flex flex-wrap items-end gap-2">
+                  <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-xs text-slate-600 dark:text-slate-400">
+                    Nome da conexão
+                    <input
+                      value={newMcpLabel}
+                      onChange={(e) => setNewMcpLabel(e.target.value)}
+                      placeholder="Ex.: Cursor, GrokBot"
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={mcpBusy}
+                    className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  >
+                    {mcpBusy ? 'Aguarde…' : 'Nova conexão'}
+                  </button>
+                </form>
+
+                {tokenReveal && (
+                  <div
+                    ref={tokenPanelRef}
+                    className="mt-4 rounded-xl border border-amber-300 bg-amber-50/95 p-4 dark:border-amber-800 dark:bg-amber-950/50"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">
+                          {tokenReveal.reason === 'create' ? 'Nova conexão' : 'Novo token'} —{' '}
+                          {tokenReveal.connectionLabel}
+                        </p>
+                        <p className="mt-1 text-xs text-amber-900/90 dark:text-amber-200/90">
+                          Válido por 365 dias. Guarde em local seguro; não será mostrado de novo nesta tela.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setTokenReveal(null)}
+                        className="text-xs text-amber-900 underline dark:text-amber-200"
+                      >
+                        Já copiei, fechar
+                      </button>
+                    </div>
+                    <label className="mt-3 block text-xs font-medium text-amber-950 dark:text-amber-100">
+                      Token (SPRINTPRO_TOKEN)
+                      <textarea
+                        readOnly
+                        value={tokenReveal.token}
+                        rows={3}
+                        className="mt-1 w-full rounded-lg border border-amber-200 bg-white px-2 py-2 font-mono text-[11px] dark:border-amber-800 dark:bg-slate-950"
+                        onFocus={(e) => e.currentTarget.select()}
+                      />
+                    </label>
+                    <label className="mt-2 block text-xs font-medium text-amber-950 dark:text-amber-100">
+                      Variáveis para o agente
+                      <textarea
+                        readOnly
+                        value={mcpEnvText}
+                        rows={2}
+                        className="mt-1 w-full rounded-lg border border-amber-200 bg-white px-2 py-2 font-mono text-[11px] dark:border-amber-800 dark:bg-slate-950"
+                        onFocus={(e) => e.currentTarget.select()}
+                      />
+                    </label>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void copyText(tokenReveal.token, 'Token copiado.')}
+                        className="rounded-lg bg-amber-800 px-3 py-1.5 text-xs font-medium text-white dark:bg-amber-700"
+                      >
+                        Copiar token
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void copyText(mcpEnvText, 'Variáveis copiadas.')}
+                        className="rounded-lg border border-amber-700 px-3 py-1.5 text-xs text-amber-950 dark:text-amber-100"
+                      >
+                        Copiar env
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {mcpLoading ? (
+                  <LoadingBlock label="Carregando conexões MCP…" className="mt-4 py-8" />
+                ) : mcpError ? (
+                  <ErrorBlock message={mcpError} onRetry={() => void loadAgentConnections()} className="mt-4" />
+                ) : agentConnections.length === 0 ? (
+                  <div className="mt-4 space-y-2 text-sm text-slate-500 dark:text-slate-400">
+                    <p>Nenhuma conexão registrada para esta conta.</p>
+                    <p className="text-xs">
+                      Se o agente já funciona com um token antigo (antes do registro na lista), crie uma nova
+                      conexão aqui ou use <strong>Novo token</strong> após criar — tokens antigos sem registro não
+                      aparecem nesta lista.
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="mt-4 divide-y divide-slate-200 dark:divide-slate-700">
+                    {agentConnections.map((connection) => {
+                      const isLive = connection.active && !connection.revokedAt
+                      const highlighted = highlightConnectionId === connection.id
+                      return (
+                        <li
+                          key={connection.id}
+                          className={`flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 ${
+                            highlighted ? 'rounded-lg bg-violet-50/80 px-2 dark:bg-violet-950/30' : ''
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-slate-900 dark:text-slate-100">{connection.label}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              Criada em {formatLastSeen(connection.createdAt)}
+                              {connection.lastUsedAt
+                                ? ` · Último uso ${formatLastSeen(connection.lastUsedAt)}`
+                                : ' · Ainda não usada'}
+                            </p>
+                          </div>
+                          <span
+                            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                              isLive
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            {isLive ? 'Ativa' : 'Desativada'}
+                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={mcpBusy}
+                              onClick={() => void onRegenerateMcpToken(connection)}
+                              className="rounded-lg border border-violet-300 px-3 py-1.5 text-xs text-violet-800 dark:border-violet-700 dark:text-violet-200"
+                            >
+                              Novo token
+                            </button>
+                            <button
+                              type="button"
+                              disabled={mcpBusy}
+                              onClick={() => void onToggleMcpConnection(connection)}
+                              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs dark:border-slate-600"
+                            >
+                              {isLive ? 'Desativar' : 'Reativar'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={mcpBusy}
+                              onClick={() => void onDeleteMcpConnection(connection)}
+                              className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 dark:bg-red-950 dark:text-red-400"
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </article>
+
+              <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="text-lg font-semibold">Aplicativo (PWA)</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  Instale o SprintPro no computador ou celular para abrir como app, com ícone na área de trabalho ou tela
+                  inicial.
+                </p>
+
+                {pwa.installed ? (
+                  <p className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                    ✓ SprintPro já está instalado neste dispositivo
+                  </p>
+                ) : (
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        pwa.clearFeedback()
+                        void pwa.install()
+                      }}
+                      disabled={pwa.installing}
+                      className="rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                    >
+                      {pwa.installing ? 'Instalando...' : 'Instalar SprintPro'}
+                    </button>
+                    {pwa.canPromptInstall && (
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400">Pronto para instalar</span>
+                    )}
+                  </div>
+                )}
+
+                {pwa.isIos && !pwa.installed && (
+                  <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                    iOS: Safari → Compartilhar → Adicionar à Tela de Início.
+                  </p>
+                )}
+
+                {pwa.feedback && (
+                  <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">{pwa.feedback}</p>
+                )}
+              </article>
+            </>
+          )}
+
+          {tab === 'seguranca' && (
+              <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                <h2 className="text-lg font-semibold">Segurança</h2>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                  Último acesso da conta atual: {formatLastSeen(appUser?.lastSeenAt)}
+                </p>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Tokens de agentes MCP são geridos na aba <strong>Integrações</strong>.
+                </p>
+                <form onSubmit={onChangePassword} className="mt-3 space-y-2">
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Senha atual"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Nova senha"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirmar nova senha"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Use pelo menos 8 caracteres com letras e números.</p>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button className="rounded-lg bg-violet-600 px-3 py-2 text-xs font-medium text-white">
+                      Alterar senha
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => logout()}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:text-slate-300"
+                    >
+                      Encerrar sessão
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!isOwner}
+                      onClick={() => void onDeleteMainAccount()}
+                      className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600 disabled:opacity-50 dark:bg-red-950 dark:text-red-400"
+                      title="Exclui empresa, colaboradores e dados da organização"
+                    >
+                      Excluir conta principal
+                    </button>
+                  </div>
+                </form>
+              </article>
+          )}
+        </div>
+      </div>
     </Layout>
   )
 }
