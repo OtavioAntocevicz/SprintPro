@@ -15,7 +15,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run --config vitest.config.ts",
-    "test:api": "node --test api/lib/validate.test.mjs",
+    "test:api": "node --test api/lib/validate.test.mjs api/lib/oauth.test.mjs",
     "mcp:install": "npm install --prefix mcp/sprintpro",
     "mcp:sprintpro": "node mcp/sprintpro/src/index.mjs",
     "mcp:token": "npm run issue-mcp-token --prefix api --"

@@ -4,8 +4,18 @@
   "installCommand": "npm install && npm install --prefix api",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    },
+    {
+      "source": "/.well-known/(.*)",
+      "destination": "/api"
+    },
+    {
+      "source": "/((?!api/|.well-known/).*)",
+      "destination": "/index.html"
+    }
   ],
   "functions": {
     "api/index.mjs": {

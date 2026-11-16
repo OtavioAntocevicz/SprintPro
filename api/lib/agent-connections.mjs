@@ -99,6 +99,41 @@ export async function regenerateAgentConnectionToken(pool, jwtSecret, userRow, c
   return { connection: mapAgentConnection(rows[0]), token }
 }
 
+/**
+ * OAuth: reaproveita a conexão do mesmo cliente (mesmo nome) em vez de criar uma nova
+ * a cada autorização, para não estourar o limite de conexões por usuário.
+ */
+export async function findOrCreateOAuthConnection(pool, jwtSecret, userRow, label) {
+  const { rows } = await pool.query(
+    `SELECT id FROM agent_connections
+     WHERE user_id = $1 AND organization_id = $2::uuid AND label = $3
+     ORDER BY created_at DESC LIMIT 1`,
+    [userRow.id, String(userRow.organization_id), label],
+  )
+  if (rows[0]) {
+    return regenerateAgentConnectionToken(pool, jwtSecret, userRow, rows[0].id)
+  }
+  return createAgentConnection(pool, jwtSecret, userRow, label)
+}
+
+/**
+ * OAuth refresh: gira o token só se a conexão continuar ativa.
+ * (Diferente de regenerateAgentConnectionToken, nunca reativa uma conexão revogada.)
+ */
+export async function rotateActiveConnectionToken(pool, jwtSecret, userRow, connectionId) {
+  const { rows } = await pool.query(
+    `UPDATE agent_connections
+     SET token_version = token_version + 1
+     WHERE id = $1 AND user_id = $2 AND organization_id = $3::uuid
+       AND active = true AND revoked_at IS NULL
+     RETURNING *`,
+    [connectionId, userRow.id, String(userRow.organization_id)],
+  )
+  if (!rows[0]) return { error: 'Conexão revogada ou inexistente.' }
+  const token = buildAgentToken(jwtSecret, userRow, connectionId, rows[0].token_version)
+  return { connection: mapAgentConnection(rows[0]), token }
+}
+
 export async function validateAgentConnection(pool, payload) {
   if (payload.typ !== 'agent' || !payload.acId) {
     return true

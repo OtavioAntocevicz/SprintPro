@@ -22615,18 +22615,168 @@ function toolResultFromHandler(result) {
   };
 }
 
-// src/index.mjs
-var matchStrategySchema = external_exports.enum(["ask", "newest"]).optional();
-var prioritySchema = external_exports.enum(["low", "medium", "high"]).optional();
-var statusSchema = external_exports.enum(["todo", "doing", "done"]).optional();
-var scopeSchema = external_exports.enum(["board", "organization", "completed"]);
-function register(server, name, description, inputSchema, handler) {
-  server.registerTool(
-    name,
-    { description, inputSchema },
-    async (args) => toolResultFromHandler(await handler(args ?? {}))
+// src/tools.mjs
+function registerTools(server, handlers, z) {
+  const matchStrategySchema = z.enum(["ask", "newest"]).optional();
+  const prioritySchema = z.enum(["low", "medium", "high"]).optional();
+  const statusSchema = z.enum(["todo", "doing", "done"]).optional();
+  const scopeSchema = z.enum(["board", "organization", "completed"]);
+  const register = (name, description, inputSchema, handler) => {
+    server.registerTool(
+      name,
+      { description, inputSchema },
+      async (args) => toolResultFromHandler(await handler(args ?? {}))
+    );
+  };
+  register(
+    "sprintpro_whoami",
+    "Retorna o usu\xE1rio autenticado e a organiza\xE7\xE3o SprintPro.",
+    z.object({}),
+    handlers.whoami
+  );
+  register("sprintpro_list_boards", "Lista quadros (boards) da organiza\xE7\xE3o.", z.object({}), handlers.list_boards);
+  register(
+    "sprintpro_create_board",
+    "Cria um novo quadro na organiza\xE7\xE3o.",
+    z.object({ name: z.string().describe("Nome do quadro") }),
+    handlers.create_board
+  );
+  register(
+    "sprintpro_list_members",
+    "Lista membros da organiza\xE7\xE3o (para atribuir respons\xE1veis).",
+    z.object({}),
+    handlers.list_members
+  );
+  register(
+    "sprintpro_resolve_assignee",
+    "Resolve nome/e-mail/\u201Ceu\u201D para um membro da equipe.",
+    z.object({ query: z.string().describe('Nome parcial, e-mail ou "eu"') }),
+    handlers.resolve_assignee
+  );
+  register(
+    "sprintpro_list_categories",
+    "Lista categorias de tarefa da organiza\xE7\xE3o.",
+    z.object({}),
+    handlers.list_categories
+  );
+  register(
+    "sprintpro_list_tasks",
+    "Lista tarefas com filtros (quadro, status, respons\xE1vel, busca, prazo).",
+    z.object({
+      scope: scopeSchema,
+      board: z.string().optional().describe("Nome ou UUID do quadro (obrigat\xF3rio se scope=board)"),
+      status: statusSchema,
+      assignee: z.string().optional(),
+      priority: prioritySchema,
+      label: z.string().optional(),
+      search: z.string().optional(),
+      dueBefore: z.string().optional().describe("YYYY-MM-DD"),
+      dueAfter: z.string().optional().describe("YYYY-MM-DD"),
+      onlyFavorites: z.boolean().optional(),
+      limit: z.number().int().min(1).max(200).optional()
+    }),
+    handlers.list_tasks
+  );
+  register(
+    "sprintpro_get_task",
+    "Detalhes de uma tarefa e suas anota\xE7\xF5es.",
+    z.object({
+      taskId: z.string().uuid().optional(),
+      taskHint: z.string().optional().describe("Parte do t\xEDtulo se n\xE3o tiver taskId"),
+      board: z.string().optional(),
+      matchStrategy: matchStrategySchema
+    }),
+    handlers.get_task
+  );
+  register(
+    "sprintpro_create_task",
+    "Cria tarefa no quadro (respons\xE1vel padr\xE3o: voc\xEA).",
+    z.object({
+      title: z.string(),
+      board: z.string().optional(),
+      description: z.string().optional(),
+      assignee: z.string().optional(),
+      priority: prioritySchema,
+      dueDate: z.string().optional().describe("YYYY-MM-DD"),
+      label: z.string().optional()
+    }),
+    handlers.create_task
+  );
+  register(
+    "sprintpro_create_tasks_bulk",
+    "Cria v\xE1rias tarefas de uma vez (ex.: itens de uma reuni\xE3o). Valida todas antes: se alguma tiver quadro/respons\xE1vel inv\xE1lido ou amb\xEDguo, nada \xE9 criado e os erros voltam com candidatos. Use dryRun=true para conferir sem criar.",
+    z.object({
+      tasks: z.array(
+        z.object({
+          title: z.string(),
+          board: z.string().optional().describe("Nome ou UUID; padr\xE3o: defaultBoard"),
+          description: z.string().optional(),
+          assignee: z.string().optional().describe('Nome, e-mail ou "eu" (padr\xE3o)'),
+          priority: prioritySchema,
+          dueDate: z.string().optional().describe("YYYY-MM-DD"),
+          label: z.string().optional()
+        })
+      ).min(1).max(50),
+      defaultBoard: z.string().optional().describe("Quadro usado quando a tarefa n\xE3o informa"),
+      dryRun: z.boolean().optional().describe("true = s\xF3 valida e mostra o plano")
+    }),
+    handlers.create_tasks_bulk
+  );
+  register(
+    "sprintpro_update_task",
+    "Atualiza tarefa (status, t\xEDtulo, prazo, respons\xE1vel, etc.).",
+    z.object({
+      taskId: z.string().uuid().optional(),
+      taskHint: z.string().optional(),
+      board: z.string().optional(),
+      matchStrategy: matchStrategySchema,
+      title: z.string().optional(),
+      description: z.string().optional(),
+      status: statusSchema,
+      priority: prioritySchema.nullable().optional(),
+      dueDate: z.string().nullable().optional(),
+      label: z.string().optional(),
+      assignee: z.string().optional(),
+      favorite: z.boolean().optional()
+    }),
+    handlers.update_task
+  );
+  register(
+    "sprintpro_add_task_note",
+    "Adiciona anota\xE7\xE3o em uma tarefa.",
+    z.object({
+      taskId: z.string().uuid().optional(),
+      taskHint: z.string().optional(),
+      board: z.string().optional(),
+      matchStrategy: matchStrategySchema,
+      content: z.string()
+    }),
+    handlers.add_task_note
+  );
+  register(
+    "sprintpro_complete_task",
+    "Marca tarefa como conclu\xEDda; opcionalmente adiciona anota\xE7\xE3o.",
+    z.object({
+      taskId: z.string().uuid().optional(),
+      taskHint: z.string().optional(),
+      board: z.string().optional(),
+      matchStrategy: matchStrategySchema,
+      note: z.string().optional()
+    }),
+    handlers.complete_task
+  );
+  register(
+    "sprintpro_summarize_workload",
+    "Resumo de pend\xEAncias (a fazer, em progresso, atrasadas, vence hoje, favoritas).",
+    z.object({
+      assignee: z.string().optional().describe("Padr\xE3o: eu"),
+      board: z.string().optional()
+    }),
+    handlers.summarize_workload
   );
 }
+
+// src/index.mjs
 async function main() {
   const config2 = loadConfig();
   const client = new SprintProClient(config2);
@@ -22635,175 +22785,7 @@ async function main() {
     name: "sprintpro",
     version: "1.0.0"
   });
-  register(
-    server,
-    "sprintpro_whoami",
-    "Retorna o usu\xE1rio autenticado e a organiza\xE7\xE3o SprintPro.",
-    external_exports.object({}),
-    handlers.whoami
-  );
-  register(
-    server,
-    "sprintpro_list_boards",
-    "Lista quadros (boards) da organiza\xE7\xE3o.",
-    external_exports.object({}),
-    handlers.list_boards
-  );
-  register(
-    server,
-    "sprintpro_create_board",
-    "Cria um novo quadro na organiza\xE7\xE3o.",
-    external_exports.object({
-      name: external_exports.string().describe("Nome do quadro")
-    }),
-    handlers.create_board
-  );
-  register(
-    server,
-    "sprintpro_list_members",
-    "Lista membros da organiza\xE7\xE3o (para atribuir respons\xE1veis).",
-    external_exports.object({}),
-    handlers.list_members
-  );
-  register(
-    server,
-    "sprintpro_resolve_assignee",
-    "Resolve nome/e-mail/\u201Ceu\u201D para um membro da equipe.",
-    external_exports.object({
-      query: external_exports.string().describe('Nome parcial, e-mail ou "eu"')
-    }),
-    handlers.resolve_assignee
-  );
-  register(
-    server,
-    "sprintpro_list_categories",
-    "Lista categorias de tarefa da organiza\xE7\xE3o.",
-    external_exports.object({}),
-    handlers.list_categories
-  );
-  register(
-    server,
-    "sprintpro_list_tasks",
-    "Lista tarefas com filtros (quadro, status, respons\xE1vel, busca, prazo).",
-    external_exports.object({
-      scope: scopeSchema,
-      board: external_exports.string().optional().describe("Nome ou UUID do quadro (obrigat\xF3rio se scope=board)"),
-      status: statusSchema,
-      assignee: external_exports.string().optional(),
-      priority: prioritySchema,
-      label: external_exports.string().optional(),
-      search: external_exports.string().optional(),
-      dueBefore: external_exports.string().optional().describe("YYYY-MM-DD"),
-      dueAfter: external_exports.string().optional().describe("YYYY-MM-DD"),
-      onlyFavorites: external_exports.boolean().optional(),
-      limit: external_exports.number().int().min(1).max(200).optional()
-    }),
-    handlers.list_tasks
-  );
-  register(
-    server,
-    "sprintpro_get_task",
-    "Detalhes de uma tarefa e suas anota\xE7\xF5es.",
-    external_exports.object({
-      taskId: external_exports.string().uuid().optional(),
-      taskHint: external_exports.string().optional().describe("Parte do t\xEDtulo se n\xE3o tiver taskId"),
-      board: external_exports.string().optional(),
-      matchStrategy: matchStrategySchema
-    }),
-    handlers.get_task
-  );
-  register(
-    server,
-    "sprintpro_create_task",
-    "Cria tarefa no quadro (respons\xE1vel padr\xE3o: voc\xEA).",
-    external_exports.object({
-      title: external_exports.string(),
-      board: external_exports.string().optional(),
-      description: external_exports.string().optional(),
-      assignee: external_exports.string().optional(),
-      priority: prioritySchema,
-      dueDate: external_exports.string().optional().describe("YYYY-MM-DD"),
-      label: external_exports.string().optional()
-    }),
-    handlers.create_task
-  );
-  register(
-    server,
-    "sprintpro_create_tasks_bulk",
-    "Cria v\xE1rias tarefas de uma vez (ex.: itens de uma reuni\xE3o). Valida todas antes: se alguma tiver quadro/respons\xE1vel inv\xE1lido ou amb\xEDguo, nada \xE9 criado e os erros voltam com candidatos. Use dryRun=true para conferir sem criar.",
-    external_exports.object({
-      tasks: external_exports.array(
-        external_exports.object({
-          title: external_exports.string(),
-          board: external_exports.string().optional().describe("Nome ou UUID; padr\xE3o: defaultBoard"),
-          description: external_exports.string().optional(),
-          assignee: external_exports.string().optional().describe('Nome, e-mail ou "eu" (padr\xE3o)'),
-          priority: prioritySchema,
-          dueDate: external_exports.string().optional().describe("YYYY-MM-DD"),
-          label: external_exports.string().optional()
-        })
-      ).min(1).max(50),
-      defaultBoard: external_exports.string().optional().describe("Quadro usado quando a tarefa n\xE3o informa"),
-      dryRun: external_exports.boolean().optional().describe("true = s\xF3 valida e mostra o plano")
-    }),
-    handlers.create_tasks_bulk
-  );
-  register(
-    server,
-    "sprintpro_update_task",
-    "Atualiza tarefa (status, t\xEDtulo, prazo, respons\xE1vel, etc.).",
-    external_exports.object({
-      taskId: external_exports.string().uuid().optional(),
-      taskHint: external_exports.string().optional(),
-      board: external_exports.string().optional(),
-      matchStrategy: matchStrategySchema,
-      title: external_exports.string().optional(),
-      description: external_exports.string().optional(),
-      status: statusSchema,
-      priority: prioritySchema.nullable().optional(),
-      dueDate: external_exports.string().nullable().optional(),
-      label: external_exports.string().optional(),
-      assignee: external_exports.string().optional(),
-      favorite: external_exports.boolean().optional()
-    }),
-    handlers.update_task
-  );
-  register(
-    server,
-    "sprintpro_add_task_note",
-    "Adiciona anota\xE7\xE3o em uma tarefa.",
-    external_exports.object({
-      taskId: external_exports.string().uuid().optional(),
-      taskHint: external_exports.string().optional(),
-      board: external_exports.string().optional(),
-      matchStrategy: matchStrategySchema,
-      content: external_exports.string()
-    }),
-    handlers.add_task_note
-  );
-  register(
-    server,
-    "sprintpro_complete_task",
-    "Marca tarefa como conclu\xEDda; opcionalmente adiciona anota\xE7\xE3o.",
-    external_exports.object({
-      taskId: external_exports.string().uuid().optional(),
-      taskHint: external_exports.string().optional(),
-      board: external_exports.string().optional(),
-      matchStrategy: matchStrategySchema,
-      note: external_exports.string().optional()
-    }),
-    handlers.complete_task
-  );
-  register(
-    server,
-    "sprintpro_summarize_workload",
-    "Resumo de pend\xEAncias (a fazer, em progresso, atrasadas, vence hoje, favoritas).",
-    external_exports.object({
-      assignee: external_exports.string().optional().describe("Padr\xE3o: eu"),
-      board: external_exports.string().optional()
-    }),
-    handlers.summarize_workload
-  );
+  registerTools(server, handlers, external_exports);
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

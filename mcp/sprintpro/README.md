@@ -2,7 +2,17 @@
 
 Servidor [Model Context Protocol](https://modelcontextprotocol.io) para o SprintPro: o agente (Cursor, GrokBot, etc.) cria e gerencia tarefas por linguagem natural.
 
-## Setup rápido
+## Conector remoto com login (recomendado para o time)
+
+A API publica um MCP remoto em **`https://sprintpro.vercel.app/api/mcp`** (Streamable HTTP) com login OAuth 2.1 (PKCE + registro dinâmico de cliente). Ninguém precisa instalar Node nem copiar token:
+
+1. **Admin (uma vez):** no Claude da organização, em Configurações → Conectores, adicione um conector personalizado com a URL acima.
+2. **Cada pessoa:** clica em **Conectar**, faz login no SprintPro e clica em **Permitir** na tela de consentimento.
+3. O acesso vira uma conexão em **Configurações → Conexões MCP** (com o nome do cliente, ex.: "Claude") e pode ser revogado lá.
+
+Endpoints: `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`, `/api/oauth/register`, `/api/oauth/authorize` (tela em `/oauth/authorize`), `/api/oauth/token`, `/api/mcp`.
+
+## Setup rápido (MCP local)
 
 ### Só na nuvem (recomendado)
 
