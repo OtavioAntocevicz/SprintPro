@@ -246,7 +246,7 @@ function Column({
     <section
       ref={setNodeRef}
       aria-label={`Coluna ${title}`}
-      className={`flex max-h-[calc(100vh-15rem)] min-h-[min(50vh,480px)] flex-col overflow-hidden rounded-2xl border-2 p-3 transition-colors ${
+      className={`flex min-h-[min(50vh,480px)] flex-col rounded-2xl border-2 p-3 transition-colors ${
         isOver
           ? 'border-dashed border-violet-500 bg-violet-50/80 dark:bg-violet-950/50'
           : dragging
@@ -266,7 +266,7 @@ function Column({
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Visíveis por 24h; histórico em Concluídos</p>
         )}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-y-contain px-0.5 pb-1">
+      <div className="flex flex-1 flex-col gap-2.5 pb-1">
         {list.length === 0 ? (
           <div className="grid flex-1 place-items-center rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400 dark:border-slate-600 dark:text-slate-500">
             {status === 'done' ? 'Arraste aqui o que foi concluído' : 'Nenhuma tarefa. Arraste uma para cá.'}
