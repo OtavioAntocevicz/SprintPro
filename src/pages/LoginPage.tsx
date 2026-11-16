@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { AuthHomeRedirect } from '../components/AuthHomeRedirect'
 import { PublicShell } from '../components/PublicShell'
+import { safeNext } from '../lib/safeNext'
 import { loginOwner, registerOwner } from '../services/auth'
 
 type AuthMode = 'login' | 'signup'
@@ -11,6 +12,8 @@ export function LoginPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const mode: AuthMode = searchParams.get('mode') === 'signup' ? 'signup' : 'login'
+  const rawNext = searchParams.get('next')
+  const next = safeNext(rawNext)
   const [fullName, setFullName] = useState('')
   const [organizationName, setOrganizationName] = useState('')
   const [email, setEmail] = useState('')
@@ -27,7 +30,7 @@ export function LoginPage() {
   }, [mode])
 
   function switchMode(nextMode: AuthMode) {
-    setSearchParams({ mode: nextMode }, { replace: true })
+    setSearchParams(rawNext ? { mode: nextMode, next: rawNext } : { mode: nextMode }, { replace: true })
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -60,7 +63,7 @@ export function LoginPage() {
         await loginOwner(cleanEmail, password)
         setMessage('Login realizado com sucesso.')
       }
-      navigate('/dashboard')
+      navigate(next)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro na autenticação.')
     } finally {
@@ -71,7 +74,7 @@ export function LoginPage() {
 
   return (
     <PublicShell>
-      <AuthHomeRedirect />
+      <AuthHomeRedirect to={next} />
       <AppHeader />
       <div className="grid place-items-center px-4 py-10">
         <form

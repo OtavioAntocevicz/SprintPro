@@ -65,8 +65,15 @@ Depois do "sim", chame **uma vez** `sprintpro_create_tasks_bulk` com todas as ta
 
 Liste o que foi criado: título, responsável, quadro, prazo. Seja breve.
 
-## Configuração (para mostrar quando faltar o token)
+## Configuração (para mostrar quando as ferramentas `sprintpro_*` não estiverem disponíveis ou derem erro de autorização)
 
-1. No SprintPro: **Configurações → Conexões MCP → Nova conexão** e copie o token.
-2. Defina a variável de ambiente `SPRINTPRO_TOKEN` com o token (cada pessoa usa o próprio). Opcionais: `SPRINTPRO_API_URL` (padrão `https://sprintpro.vercel.app`) e `SPRINTPRO_DEFAULT_BOARD_NAME`.
-3. Reinicie o Claude para o MCP carregar.
+**No claude.ai (web, desktop ou celular): conector remoto, recomendado.**
+1. Configurações → Conectores → **SprintPro** → **Conectar** (se a organização já adicionou o conector). Se não aparecer, um admin adiciona um conector personalizado com a URL `https://sprintpro.vercel.app/api/mcp`.
+2. Faça login no SprintPro na janela que abrir e clique em **Permitir**.
+3. Ative o conector SprintPro na conversa e rode `/sprintpro` de novo.
+
+**No Claude Code com o plugin local.**
+1. SprintPro → Configurações → Conexões MCP → Nova conexão; copie o token.
+2. Defina a variável de ambiente `SPRINTPRO_TOKEN` com o token e reinicie o Claude.
+
+O acesso é por pessoa e pode ser revogado em SprintPro → Configurações → Conexões MCP.

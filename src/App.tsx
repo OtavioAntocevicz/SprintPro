@@ -8,6 +8,7 @@ import { CompletedPage } from './pages/CompletedPage'
 import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
 import { MembersPage } from './pages/MembersPage'
+import { OAuthAuthorizePage } from './pages/OAuthAuthorizePage'
 import { ReportsPage } from './pages/ReportsPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
@@ -24,6 +25,7 @@ function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
       <Route path="/join" element={<AcceptInvitePage />} />
+      <Route path="/oauth/authorize" element={<OAuthAuthorizePage />} />
       <Route
         path="/dashboard"
         element={

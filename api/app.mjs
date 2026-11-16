@@ -16,6 +16,8 @@ import {
   validateAgentConnection,
 } from './lib/agent-connections.mjs'
 import { isStrongPassword } from './lib/validate.mjs'
+import { registerMcpRoutes } from './lib/mcp-http.mjs'
+import { registerOAuthRoutes } from './lib/oauth-routes.mjs'
 
 neonConfig.webSocketConstructor = WebSocket
 
@@ -1594,6 +1596,21 @@ app.get('/api/health/db', async (_req, res) => {
     })
   }
 })
+
+/** Origem pública desta requisição (respeita o proxy da Vercel). */
+function baseUrlFor(req) {
+  const proto = String(req.headers['x-forwarded-proto'] ?? req.protocol).split(',')[0].trim()
+  const host = String(req.headers['x-forwarded-host'] ?? req.get('host')).split(',')[0].trim()
+  return `${proto}://${host}`
+}
+
+/** Onde o frontend roda (tela de consentimento OAuth). */
+function appUrlFor(req) {
+  return (process.env.APP_URL || '').replace(/\/$/, '') || baseUrlFor(req)
+}
+
+registerOAuthRoutes(app, { pool, jwtSecret: JWT_SECRET, authRequired, baseUrlFor, appUrlFor })
+registerMcpRoutes(app, { authRequired, baseUrlFor })
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'Não encontrado' })

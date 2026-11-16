@@ -10,6 +10,10 @@ export default defineConfig({
         target: 'http://127.0.0.1:8787',
         changeOrigin: true,
       },
+      '/.well-known': {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+      },
     },
   },
   plugins: [
@@ -55,6 +59,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // OAuth/MCP: o navegador precisa chegar na API, não no index.html em cache.
+        navigateFallbackDenylist: [/^\/api\//, /^\/\.well-known\//],
       },
     }),
   ],
