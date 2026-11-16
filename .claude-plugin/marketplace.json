@@ -1,0 +1,13 @@
+{
+  "name": "sprintpro",
+  "owner": {
+    "name": "Otavio Antocevicz"
+  },
+  "plugins": [
+    {
+      "name": "sprintpro",
+      "source": "./plugins/sprintpro",
+      "description": "Distribui as tarefas de uma reunião (notas do Granola) no SprintPro, com prévia antes de criar."
+    }
+  ]
+}

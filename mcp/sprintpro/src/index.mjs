@@ -132,6 +132,31 @@ async function main() {
 
   register(
     server,
+    'sprintpro_create_tasks_bulk',
+    'Cria várias tarefas de uma vez (ex.: itens de uma reunião). Valida todas antes: se alguma tiver quadro/responsável inválido ou ambíguo, nada é criado e os erros voltam com candidatos. Use dryRun=true para conferir sem criar.',
+    z.object({
+      tasks: z
+        .array(
+          z.object({
+            title: z.string(),
+            board: z.string().optional().describe('Nome ou UUID; padrão: defaultBoard'),
+            description: z.string().optional(),
+            assignee: z.string().optional().describe('Nome, e-mail ou "eu" (padrão)'),
+            priority: prioritySchema,
+            dueDate: z.string().optional().describe('YYYY-MM-DD'),
+            label: z.string().optional(),
+          }),
+        )
+        .min(1)
+        .max(50),
+      defaultBoard: z.string().optional().describe('Quadro usado quando a tarefa não informa'),
+      dryRun: z.boolean().optional().describe('true = só valida e mostra o plano'),
+    }),
+    handlers.create_tasks_bulk,
+  )
+
+  register(
+    server,
     'sprintpro_update_task',
     'Atualiza tarefa (status, título, prazo, responsável, etc.).',
     z.object({

@@ -6,7 +6,8 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // plugins/*/server: bundle gerado pelo esbuild (npm run bundle --prefix mcp/sprintpro)
+  globalIgnores(['dist', 'plugins/*/server']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
