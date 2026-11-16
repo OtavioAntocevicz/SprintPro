@@ -1308,15 +1308,11 @@ app.delete('/api/tasks/:id', authRequired, async (req, res) => {
   const taskId = req.params.id
   try {
     const check = await pool.query(
-      'SELECT id, status FROM tasks WHERE id = $1 AND organization_id = $2',
+      'SELECT id FROM tasks WHERE id = $1 AND organization_id = $2',
       [taskId, req.user.orgId],
     )
     if (!check.rowCount) {
       return res.status(404).json({ error: 'Tarefa não encontrada.' })
-    }
-    const status = check.rows[0].status
-    if (status !== 'done') {
-      return res.status(400).json({ error: 'Só é possível excluir tarefa concluída.' })
     }
     await pool.query('DELETE FROM tasks WHERE id = $1 AND organization_id = $2', [taskId, req.user.orgId])
     return res.status(204).send()

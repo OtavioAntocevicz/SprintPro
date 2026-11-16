@@ -294,6 +294,7 @@ export function KanbanSection({
   members,
   categories,
   onLocalPatch,
+  onLocalRemove,
 }: Props) {
   const [active, setActive] = useState<Task | null>(null)
   const [notesTask, setNotesTask] = useState<Task | null>(null)
@@ -406,6 +407,8 @@ export function KanbanSection({
         members={members}
         categories={categories}
         onClose={() => setEditTask(null)}
+        canDelete={appUser?.role === 'owner'}
+        onDeleted={onLocalRemove}
         onSaved={(updated) =>
           onLocalPatch(updated.id, {
             description: updated.description,
