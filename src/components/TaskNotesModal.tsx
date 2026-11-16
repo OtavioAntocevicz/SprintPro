@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { addTaskNote, deleteTaskNote, fetchTaskNotes } from '../services/apiData'
 import { useAuthStore } from '../store/authStore'
 import type { Task, TaskNote } from '../types'
+import { Avatar, Modal } from './ui'
+import { buttonClass, inputClass, labelClass } from './uiStyles'
 
 type Props = {
   task: Task | null
@@ -94,103 +96,94 @@ export function TaskNotesModal({ task, open, onClose, onNotesCountChange }: Prop
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4 dark:bg-black/60">
-      <div className="flex max-h-[min(90vh,640px)] w-full max-w-lg flex-col rounded-2xl bg-white p-6 shadow-xl dark:border dark:border-slate-700 dark:bg-slate-900">
-        <div className="mb-4 flex flex-shrink-0 items-start justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Anotações</h2>
-            <p className="mt-1 text-sm font-medium text-slate-700 dark:text-slate-300">{taskTitle}</p>
-          </div>
+    <Modal
+      open
+      onClose={onClose}
+      size="md"
+      title="Anotações"
+      description={<span className="font-medium text-slate-700 dark:text-slate-300">{taskTitle}</span>}
+      footer={
+        <button type="button" onClick={onClose} className={buttonClass.secondary}>
+          Fechar
+        </button>
+      }
+    >
+      {taskDescription && (
+        <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Descrição</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-300">{taskDescription}</p>
+        </div>
+      )}
+
+      <div className="mb-4">
+        <label htmlFor="task-note-draft" className={labelClass}>
+          Nova anotação
+        </label>
+        <textarea
+          id="task-note-draft"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault()
+              void onAdd()
+            }
+          }}
+          rows={3}
+          placeholder="Registre um checkpoint, bloqueio, link ou observação..."
+          className={inputClass}
+        />
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <span className="text-xs text-slate-400">Ctrl+Enter para adicionar</span>
           <button
             type="button"
-            onClick={onClose}
-            className="rounded bg-slate-100 px-2 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+            onClick={() => void onAdd()}
+            disabled={adding || !draft.trim()}
+            className={buttonClass.primary}
           >
-            ✕
-          </button>
-        </div>
-
-        {taskDescription && (
-          <div className="mb-4 flex-shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              Descrição
-            </p>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{taskDescription}</p>
-          </div>
-        )}
-
-        <div className="mb-4 flex-shrink-0">
-          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-            Nova anotação
-          </label>
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={3}
-            placeholder="Registre um checkpoint, bloqueio, link ou observação..."
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-          />
-          <div className="mt-2 flex justify-end">
-            <button
-              type="button"
-              onClick={() => void onAdd()}
-              disabled={adding || !draft.trim()}
-              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-            >
-              {adding ? 'Adicionando...' : 'Adicionar'}
-            </button>
-          </div>
-        </div>
-
-        {error && <p className="mb-3 flex-shrink-0 text-sm text-red-600 dark:text-red-400">{error}</p>}
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Histórico
-          </p>
-          {loading ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">Carregando anotações...</p>
-          ) : notes.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma anotação registrada ainda.</p>
-          ) : (
-            <ul className="space-y-3">
-              {notes.map((note) => (
-                <li
-                  key={note.id}
-                  className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800"
-                >
-                  <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{note.content}</p>
-                  <div className="mt-2 flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
-                    <span>
-                      {note.authorName} · {formatNoteDate(note.createdAt)}
-                    </span>
-                    {canDeleteNote(note) && (
-                      <button
-                        type="button"
-                        onClick={() => void onDelete(note)}
-                        disabled={deletingId === note.id}
-                        className="text-red-600 hover:underline disabled:opacity-60 dark:text-red-400"
-                      >
-                        {deletingId === note.id ? 'Excluindo...' : 'Excluir'}
-                      </button>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="mt-4 flex flex-shrink-0 justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 dark:border-slate-600 dark:text-slate-300"
-          >
-            Fechar
+            {adding ? 'Adicionando...' : 'Adicionar'}
           </button>
         </div>
       </div>
-    </div>
+
+      {error && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Histórico</p>
+      {loading ? (
+        <p className="text-sm text-slate-500 dark:text-slate-400">Carregando anotações...</p>
+      ) : notes.length === 0 ? (
+        <p className="text-sm text-slate-500 dark:text-slate-400">Nenhuma anotação registrada ainda.</p>
+      ) : (
+        <ul className="space-y-3">
+          {notes.map((note) => (
+            <li
+              key={note.id}
+              className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800"
+            >
+              <Avatar name={note.authorName} size="md" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <span>
+                    <strong className="font-semibold text-slate-700 dark:text-slate-200">{note.authorName}</strong> ·{' '}
+                    {formatNoteDate(note.createdAt)}
+                  </span>
+                  {canDeleteNote(note) && (
+                    <button
+                      type="button"
+                      onClick={() => void onDelete(note)}
+                      disabled={deletingId === note.id}
+                      className="text-red-600 hover:underline disabled:opacity-60 dark:text-red-400"
+                    >
+                      {deletingId === note.id ? 'Excluindo...' : 'Excluir'}
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">{note.content}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Modal>
   )
 }

@@ -20,6 +20,15 @@ import type { AppUser, Task, TaskCategory, TaskStatus } from '../types'
 import type { TaskLocalPatch } from '../hooks/useTasks'
 import { taskPriorityLabel } from '../utils/taskPriorityLabel'
 import { taskPhase } from '../utils/taskStatus'
+import {
+  dueTone,
+  dueToneClass,
+  dueToneLabel,
+  formatDueDate,
+  priorityBadgeClass,
+  priorityStripeClass,
+} from '../utils/taskDue'
+import { Avatar } from './ui'
 
 const COL = {
   todo: 'col-todo',
@@ -43,6 +52,13 @@ type Props = {
   onRefetch: () => void
 }
 
+const iconBtn =
+  'grid h-7 w-7 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-violet-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-violet-300'
+
+function stop(e: React.SyntheticEvent) {
+  e.stopPropagation()
+}
+
 function TaskCard({
   task,
   onToggleFavorite,
@@ -56,11 +72,14 @@ function TaskCard({
   onOpenNotes: (task: Task) => void
   onOpenEdit: (task: Task) => void
 }) {
-  const hasNotes = (task.notesCount ?? 0) > 0
+  const notesCount = task.notesCount ?? 0
+  const hasNotes = notesCount > 0
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
   })
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined
+  const tone = dueTone(task)
+  const stripe = task.priority ? priorityStripeClass[task.priority] : 'before:bg-transparent'
 
   return (
     <article
@@ -68,62 +87,56 @@ function TaskCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`cursor-grab touch-manipulation rounded-xl border border-slate-200 bg-white p-3 shadow-sm active:cursor-grabbing dark:border-slate-600 dark:bg-slate-800 ${
-        isDragging ? 'opacity-40 ring-2 ring-violet-300' : 'hover:border-slate-300 dark:hover:border-slate-500'
+      className={`group relative cursor-grab touch-manipulation overflow-hidden rounded-xl border border-slate-200 bg-white p-3 pl-4 shadow-sm transition before:absolute before:inset-y-0 before:left-0 before:w-1 active:cursor-grabbing dark:border-slate-700 dark:bg-slate-800 ${stripe} ${
+        isDragging
+          ? 'opacity-40 ring-2 ring-violet-300'
+          : 'hover:border-slate-300 hover:shadow-md dark:hover:border-slate-500'
       }`}
     >
       <div className="mb-2 flex items-start justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          {task.label && (
-            <span className="rounded bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-950 dark:text-violet-300">
-              {task.label}
-            </span>
-          )}
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           {task.priority && (
-            <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+            <span
+              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset ${priorityBadgeClass[task.priority]}`}
+            >
               {taskPriorityLabel(task.priority)}
             </span>
           )}
+          {task.label && (
+            <span className="truncate rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+              {task.label}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="-mr-1 -mt-1 flex shrink-0 items-center">
           <button
             type="button"
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={stop}
+            onPointerDown={stop}
             onClick={() => onOpenEdit(task)}
             title="Editar tarefa"
-            className="rounded p-0.5 text-slate-300 hover:text-violet-500 dark:hover:text-violet-400"
+            aria-label={`Editar tarefa ${task.title}`}
+            className={`${iconBtn} opacity-0 focus-visible:opacity-100 group-hover:opacity-100`}
           >
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M12 20h9" />
               <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => onOpenNotes(task)}
-            title={hasNotes ? 'Ver anotações' : 'Adicionar anotações'}
-            className={`rounded p-0.5 ${
-              hasNotes
-                ? 'text-violet-600 dark:text-violet-400'
-                : 'text-slate-300 hover:text-violet-500 dark:hover:text-violet-400'
-            }`}
-          >
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
             </svg>
           </button>
           {canFavorite && (
             <button
               type="button"
-              onMouseDown={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={stop}
+              onPointerDown={stop}
               onClick={() => onToggleFavorite(task)}
               title={task.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
-              className={`text-base leading-none ${task.favorite ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400'}`}
+              aria-label={task.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+              aria-pressed={Boolean(task.favorite)}
+              className={`grid h-7 w-7 place-items-center rounded-md text-base leading-none transition hover:bg-slate-100 dark:hover:bg-slate-700 ${
+                task.favorite
+                  ? 'text-amber-500'
+                  : 'text-slate-400 opacity-0 hover:text-amber-500 focus-visible:opacity-100 group-hover:opacity-100 dark:text-slate-500'
+              }`}
             >
               ★
             </button>
@@ -132,18 +145,58 @@ function TaskCard({
       </div>
       <button
         type="button"
-        onMouseDown={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={stop}
+        onPointerDown={stop}
         onClick={() => onOpenNotes(task)}
         className="w-full text-left"
         title={hasNotes ? 'Ver anotações' : 'Adicionar anotações'}
       >
-        <h3 className="font-medium text-slate-900 dark:text-slate-100">{task.title}</h3>
-        <p className="mt-1 line-clamp-3 text-sm text-slate-600 dark:text-slate-400">{task.description}</p>
+        <h3 className="font-medium leading-snug text-slate-900 dark:text-slate-100">{task.title}</h3>
+        {task.description && (
+          <p className="mt-1 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">{task.description}</p>
+        )}
       </button>
-      <div className="mt-3 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-        <span>{task.assigneeName ?? 'Sem responsável'}</span>
-        <span>{task.dueDate ? new Date(`${task.dueDate}T00:00:00`).toLocaleDateString('pt-BR') : 'Sem prazo'}</span>
+      <div className="mt-3 flex items-center justify-between gap-2 text-xs">
+        <div className="flex min-w-0 items-center gap-1.5 text-slate-600 dark:text-slate-300">
+          {task.assigneeName ? (
+            <>
+              <Avatar name={task.assigneeName} size="xs" />
+              <span className="truncate">{task.assigneeName.split(' ')[0]}</span>
+            </>
+          ) : (
+            <span className="text-slate-400">Sem responsável</span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            onMouseDown={stop}
+            onPointerDown={stop}
+            onClick={() => onOpenNotes(task)}
+            title={hasNotes ? `${notesCount} anotação(ões)` : 'Adicionar anotação'}
+            aria-label={hasNotes ? `Ver ${notesCount} anotações` : 'Adicionar anotação'}
+            className={`flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-700 ${
+              hasNotes ? 'text-violet-600 dark:text-violet-300' : 'text-slate-400 dark:text-slate-500'
+            }`}
+          >
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            {hasNotes && <span className="font-medium">{notesCount}</span>}
+          </button>
+          {task.dueDate && (
+            <span
+              title={dueToneLabel[tone] ?? 'Prazo'}
+              className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium ${dueToneClass[tone]}`}
+            >
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2" />
+                <path d="M16 2v4M8 2v4M3 10h18" />
+              </svg>
+              {formatDueDate(task.dueDate)}
+            </span>
+          )}
+        </div>
       </div>
     </article>
   )
@@ -151,11 +204,19 @@ function TaskCard({
 
 function taskCardStatic(task: Task) {
   return (
-    <article className="cursor-grabbing rounded-xl border border-violet-200 bg-white p-3 shadow-lg ring-2 ring-violet-400 dark:border-violet-700 dark:bg-slate-800">
+    <article className="rotate-1 cursor-grabbing rounded-xl border border-violet-200 bg-white p-3 shadow-xl ring-2 ring-violet-400 dark:border-violet-700 dark:bg-slate-800">
       <h3 className="font-medium text-slate-900 dark:text-slate-100">{task.title}</h3>
-      <p className="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">{task.description}</p>
+      {task.description && (
+        <p className="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">{task.description}</p>
+      )}
     </article>
   )
+}
+
+const COLUMN_ACCENT: Record<TaskStatus, string> = {
+  todo: 'bg-slate-400',
+  doing: 'bg-violet-500',
+  done: 'bg-emerald-500',
 }
 
 function Column({
@@ -163,6 +224,7 @@ function Column({
   title,
   status,
   list,
+  dragging,
   onToggleFavorite,
   canFavorite,
   onOpenNotes,
@@ -172,6 +234,7 @@ function Column({
   title: string
   status: TaskStatus
   list: Task[]
+  dragging: boolean
   onToggleFavorite: (task: Task) => void
   canFavorite: boolean
   onOpenNotes: (task: Task) => void
@@ -182,33 +245,44 @@ function Column({
   return (
     <section
       ref={setNodeRef}
-      className={`flex min-h-[min(50vh,480px)] flex-col overflow-hidden rounded-2xl border-2 border-dashed p-3 transition-colors ${
+      aria-label={`Coluna ${title}`}
+      className={`flex max-h-[calc(100vh-15rem)] min-h-[min(50vh,480px)] flex-col overflow-hidden rounded-2xl border-2 p-3 transition-colors ${
         isOver
-          ? 'border-violet-500 bg-violet-50/80 dark:bg-violet-950/50'
-          : 'border-slate-200/80 bg-[#eef1f7] dark:border-slate-600 dark:bg-slate-800/50'
-      } `}
+          ? 'border-dashed border-violet-500 bg-violet-50/80 dark:bg-violet-950/50'
+          : dragging
+            ? 'border-dashed border-slate-300 bg-column dark:border-slate-600 dark:bg-slate-800/50'
+            : 'border-transparent bg-column dark:bg-slate-800/40'
+      }`}
     >
-      <div className="mb-3 flex-shrink-0">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-          {title} <span className="text-slate-400 dark:text-slate-500">({list.length})</span>
-        </h2>
+      <div className="mb-3 flex-shrink-0 px-1">
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${COLUMN_ACCENT[status]}`} aria-hidden="true" />
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">{title}</h2>
+          <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-500 dark:bg-slate-700 dark:text-slate-300">
+            {list.length}
+          </span>
+        </div>
         {status === 'done' && (
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Visíveis por 24h; histórico em Concluídos
-          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Visíveis por 24h; histórico em Concluídos</p>
         )}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain">
-        {list.map((task) => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            onToggleFavorite={onToggleFavorite}
-            canFavorite={canFavorite}
-            onOpenNotes={onOpenNotes}
-            onOpenEdit={onOpenEdit}
-          />
-        ))}
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-y-contain px-0.5 pb-1">
+        {list.length === 0 ? (
+          <div className="grid flex-1 place-items-center rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-400 dark:border-slate-600 dark:text-slate-500">
+            {status === 'done' ? 'Arraste aqui o que foi concluído' : 'Nenhuma tarefa. Arraste uma para cá.'}
+          </div>
+        ) : (
+          list.map((task) => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              onToggleFavorite={onToggleFavorite}
+              canFavorite={canFavorite}
+              onOpenNotes={onOpenNotes}
+              onOpenEdit={onOpenEdit}
+            />
+          ))
+        )}
       </div>
     </section>
   )
@@ -303,11 +377,12 @@ export function KanbanSection({
           {feedback}
         </p>
       )}
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         {ORDER.map((col) => (
           <Column
             key={col.key}
             colId={COL[col.key]}
+            dragging={active !== null}
             title={col.title}
             status={col.status}
             list={tasks[col.key]}

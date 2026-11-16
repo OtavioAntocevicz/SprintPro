@@ -165,7 +165,7 @@ export function CompletedPage() {
   return (
     <Layout searchPlaceholder="Buscar em concluídos...">
       <section className="mb-6">
-        <h1 className="text-4xl font-semibold tracking-tight">Concluídos</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">Concluídos</h1>
         <p className="mt-2 text-slate-500 dark:text-slate-400">
           Histórico de tarefas finalizadas. No quadro, concluídas ficam visíveis por 24 horas.
         </p>

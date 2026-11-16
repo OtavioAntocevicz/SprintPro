@@ -200,8 +200,8 @@ export function MembersPage() {
 
   return (
     <Layout searchPlaceholder="Buscar membros por nome ou e-mail...">
-      <section className="mb-5 flex items-center justify-between">
-        <h1 className="text-4xl font-semibold">Membros da Organização</h1>
+      <section className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-semibold tracking-tight">Membros da Organização</h1>
         <form onSubmit={onInvite} className="flex items-center gap-2">
           <input
             type="email"
@@ -224,15 +224,15 @@ export function MembersPage() {
       <section className="grid gap-4 md:grid-cols-3">
         <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
           <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Total de membros</p>
-          <p className="mt-2 text-4xl font-bold">{members.length}</p>
+          <p className="mt-2 text-3xl font-bold">{members.length}</p>
         </article>
         <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
           <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Assentos disponíveis</p>
-          <p className="mt-2 text-4xl font-bold">{Math.max(0, 20 - members.length)}</p>
+          <p className="mt-2 text-3xl font-bold">{Math.max(0, 20 - members.length)}</p>
         </article>
         <article className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
           <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Convites pendentes</p>
-          <p className="mt-2 text-4xl font-bold">{pendingInvites.length}</p>
+          <p className="mt-2 text-3xl font-bold">{pendingInvites.length}</p>
         </article>
       </section>
 

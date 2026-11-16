@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useOrganizationTasks } from './useOrganizationTasks'
 import type { Task } from '../types'
+import { taskPhase } from '../utils/taskStatus'
 
 function startOfToday() {
   const d = new Date()
@@ -39,6 +40,7 @@ export function useOrgTaskStats(organizationId?: string) {
 
     return {
       totalActiveTasks: active.length,
+      inProgressCount: active.filter((task) => taskPhase(task.status) === 'doing').length,
       upcomingDeadlines: upcomingTasks.length,
       overdueCount: overdueTasks.length,
       upcomingTasks,
