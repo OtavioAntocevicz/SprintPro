@@ -59,12 +59,17 @@ Em produção, use a URL pública da API (mesmo domínio do frontend com `/api` 
 | `sprintpro_list_tasks` | Listar com filtros |
 | `sprintpro_get_task` | Detalhe + notas |
 | `sprintpro_create_task` | Criar tarefa |
+| `sprintpro_create_tasks_bulk` | Criar várias tarefas de uma vez (tudo ou nada, com `dryRun`) |
 | `sprintpro_update_task` | Editar / mover coluna |
 | `sprintpro_add_task_note` | Anotação |
 | `sprintpro_complete_task` | Concluir (+ nota opcional) |
 | `sprintpro_summarize_workload` | Resumo do dia |
 
 Respostas JSON: `{ "ok": true, "data": ... }` ou `{ "ok": false, "error": "..." }`.
+
+## Plugin para o Claude
+
+O plugin em [`plugins/sprintpro`](../../plugins/sprintpro/README.md) empacota este MCP e a skill `/sprintpro`, que distribui as notas de uma reunião (Granola) em tarefas. Depois de alterar `src/`, gere o bundle do plugin de novo com `npm run bundle --prefix mcp/sprintpro`.
 
 ## Testes
 

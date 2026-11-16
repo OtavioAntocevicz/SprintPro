@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "sprintpro": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/server/sprintpro-mcp.mjs"],
+      "env": {
+        "SPRINTPRO_TOKEN": "${SPRINTPRO_TOKEN}",
+        "SPRINTPRO_API_URL": "${SPRINTPRO_API_URL:-https://sprintpro.vercel.app}",
+        "SPRINTPRO_DEFAULT_BOARD_NAME": "${SPRINTPRO_DEFAULT_BOARD_NAME:-}"
+      }
+    }
+  }
+}

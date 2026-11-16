@@ -1,0 +1,10 @@
+{
+  "name": "sprintpro",
+  "version": "1.0.0",
+  "description": "Distribui as tarefas de uma reunião (notas do Granola) no SprintPro, com prévia antes de criar.",
+  "author": {
+    "name": "Otavio Antocevicz"
+  },
+  "repository": "https://github.com/OtavioAntocevicz/SprintPro",
+  "keywords": ["sprintpro", "tarefas", "reuniao", "granola", "kanban"]
+}

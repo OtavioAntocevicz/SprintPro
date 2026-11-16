@@ -1,5 +1,6 @@
 import { filterTasks, summarizeForAssignee } from './lib/filters.mjs'
 import { resolveAssignee, resolveBoard, resolveTaskId } from './lib/resolve.mjs'
+import { planBulkTasks } from './lib/bulk.mjs'
 
 async function requireSession(client) {
   const session = await client.getSession()
@@ -169,6 +170,56 @@ export function createHandlers(client) {
       const created = await client.createTask(body)
       if (!created.ok) return created
       return client.ok({ task: created.data })
+    },
+
+    async create_tasks_bulk({ tasks, defaultBoard, dryRun }) {
+      const s = await requireSession(client)
+      if (!s.ok) return s
+      const [boards, members] = await Promise.all([client.getBoards(), client.getMembers()])
+      if (!boards.ok) return boards
+      if (!members.ok) return members
+
+      const { plan, errors } = planBulkTasks({
+        tasks,
+        boards: boards.data,
+        members: members.data,
+        selfUser: s.data.user,
+        defaultBoard,
+        defaultBoardName: client.defaultBoardName,
+      })
+
+      // Tudo ou nada: com qualquer erro de validação, nada é criado.
+      if (errors.length) {
+        return client.fail(
+          `${errors.length} tarefa(s) com problema; nada foi criado. Corrija e envie o lote de novo.`,
+          { errors, valid: plan.length },
+        )
+      }
+
+      const preview = plan.map((p) => ({
+        index: p.index,
+        title: p.body.title,
+        board: p.boardName,
+        assignee: p.body.assigneeName,
+        priority: p.body.priority ?? null,
+        dueDate: p.body.dueDate ?? null,
+      }))
+      if (dryRun) return client.ok({ dryRun: true, tasks: preview })
+
+      const created = []
+      const failed = []
+      for (const p of plan) {
+        const r = await client.createTask(p.body)
+        if (r.ok) {
+          created.push({ ...preview.find((x) => x.index === p.index), id: r.data?.id })
+        } else {
+          failed.push({ index: p.index, title: p.body.title, error: r.error })
+        }
+      }
+      if (!created.length) {
+        return client.fail('Nenhuma tarefa foi criada.', { failed })
+      }
+      return client.ok({ created, failed })
     },
 
     async update_task(input) {

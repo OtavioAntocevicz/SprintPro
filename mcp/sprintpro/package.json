@@ -10,11 +10,15 @@
   },
   "scripts": {
     "start": "node src/index.mjs",
-    "test": "node --test src/lib/*.test.mjs"
+    "test": "node --test src/lib/*.test.mjs",
+    "bundle": "esbuild src/index.mjs --bundle --platform=node --format=esm --target=node20 --legal-comments=none --outfile=../../plugins/sprintpro/server/sprintpro-mcp.mjs \"--banner:js=import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);\""
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
     "dotenv": "^16.6.1",
     "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12"
   }
 }
