@@ -7,13 +7,18 @@ function startOfToday() {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate())
 }
 
+function daysUntil(dueDate: string, today: Date) {
+  const due = new Date(`${dueDate.slice(0, 10)}T00:00:00`)
+  if (Number.isNaN(due.getTime())) return null
+  return Math.round((due.getTime() - today.getTime()) / 86_400_000)
+}
+
 /** Classifica o prazo de uma tarefa (tarefas concluídas nunca ficam "atrasadas"). */
 export function dueTone(task: Pick<Task, 'dueDate' | 'status'>, today: Date = startOfToday()): DueTone {
   if (!task.dueDate) return 'none'
   if (task.status === 'done') return 'later'
-  const due = new Date(`${task.dueDate.slice(0, 10)}T00:00:00`)
-  if (Number.isNaN(due.getTime())) return 'none'
-  const days = Math.round((due.getTime() - today.getTime()) / 86_400_000)
+  const days = daysUntil(task.dueDate, today)
+  if (days === null) return 'none'
   if (days < 0) return 'overdue'
   if (days === 0) return 'today'
   if (days <= 3) return 'soon'
@@ -28,27 +33,18 @@ export function formatDueDate(dueDate?: string) {
   })
 }
 
-export const dueToneClass: Record<DueTone, string> = {
-  none: 'text-slate-400 dark:text-slate-500',
-  later: 'text-slate-500 dark:text-slate-400',
-  soon: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300',
-  today: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200',
-  overdue: 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300',
-}
-
-export const dueToneLabel: Partial<Record<DueTone, string>> = {
-  overdue: 'Atrasada',
-  today: 'Vence hoje',
-}
-
-export const priorityBadgeClass: Record<'low' | 'medium' | 'high', string> = {
-  low: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:ring-emerald-900',
-  medium: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:ring-amber-900',
-  high: 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/60 dark:text-red-300 dark:ring-red-900',
-}
-
-export const priorityStripeClass: Record<'low' | 'medium' | 'high', string> = {
-  low: 'before:bg-emerald-400',
-  medium: 'before:bg-amber-400',
-  high: 'before:bg-red-500',
+/** Prazo em linguagem natural: "Hoje", "Amanhã", "Em 3 dias", "2 dias atrasada"; datas distantes viram "19 de nov." */
+export function relativeDueLabel(
+  task: Pick<Task, 'dueDate' | 'status'>,
+  today: Date = startOfToday(),
+): string {
+  if (!task.dueDate) return 'Sem prazo'
+  const days = daysUntil(task.dueDate, today)
+  if (days === null || task.status === 'done') return formatDueDate(task.dueDate)
+  if (days === 0) return 'Hoje'
+  if (days === 1) return 'Amanhã'
+  if (days === -1) return 'Ontem'
+  if (days < 0) return `${-days} dias atrasada`
+  if (days <= 6) return `Em ${days} dias`
+  return formatDueDate(task.dueDate)
 }

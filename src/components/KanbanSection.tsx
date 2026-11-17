@@ -20,14 +20,7 @@ import type { AppUser, Task, TaskCategory, TaskStatus } from '../types'
 import type { TaskLocalPatch } from '../hooks/useTasks'
 import { taskPriorityLabel } from '../utils/taskPriorityLabel'
 import { taskPhase } from '../utils/taskStatus'
-import {
-  dueTone,
-  dueToneClass,
-  dueToneLabel,
-  formatDueDate,
-  priorityBadgeClass,
-  priorityStripeClass,
-} from '../utils/taskDue'
+import { dueTone, relativeDueLabel, type DueTone } from '../utils/taskDue'
 import { Avatar } from './ui'
 
 const COL = {
@@ -59,6 +52,46 @@ function stop(e: React.SyntheticEvent) {
   e.stopPropagation()
 }
 
+const PRIORITY_LEVEL = { low: 1, medium: 2, high: 3 } as const
+
+/** Prioridade como "barras de sinal": monocromático, só a alta ganha cor. */
+function PriorityBars({ priority }: { priority: 'low' | 'medium' | 'high' }) {
+  const level = PRIORITY_LEVEL[priority]
+  const label = `Prioridade ${taskPriorityLabel(priority).toLowerCase()}`
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      title={label}
+      className={`inline-flex shrink-0 ${
+        priority === 'high' ? 'text-rose-500 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'
+      }`}
+    >
+      <svg viewBox="0 0 14 12" className="h-3 w-3.5" fill="currentColor" aria-hidden="true">
+        {[0, 1, 2].map((i) => (
+          <rect
+            key={i}
+            x={i * 5}
+            y={8 - i * 4}
+            width="3.5"
+            height={4 + i * 4}
+            rx="1"
+            opacity={i < level ? 1 : 0.22}
+          />
+        ))}
+      </svg>
+    </span>
+  )
+}
+
+const DUE_TEXT: Record<DueTone, string> = {
+  none: 'text-slate-400 dark:text-slate-500',
+  later: 'text-slate-500 dark:text-slate-400',
+  soon: 'text-slate-700 dark:text-slate-200',
+  today: 'font-semibold text-slate-900 dark:text-white',
+  overdue: 'font-semibold text-rose-600 dark:text-rose-400',
+}
+
 function TaskCard({
   task,
   onToggleFavorite,
@@ -79,7 +112,7 @@ function TaskCard({
   })
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined
   const tone = dueTone(task)
-  const stripe = task.priority ? priorityStripeClass[task.priority] : 'before:bg-transparent'
+  const isDone = task.status === 'done'
 
   return (
     <article
@@ -87,23 +120,17 @@ function TaskCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`group relative shrink-0 cursor-grab touch-manipulation overflow-hidden rounded-xl border border-slate-200 bg-white p-3 pl-4 shadow-sm transition before:absolute before:inset-y-0 before:left-0 before:w-1 active:cursor-grabbing dark:border-slate-700 dark:bg-slate-800 ${stripe} ${
+      className={`group relative shrink-0 cursor-grab touch-manipulation rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition active:cursor-grabbing dark:border-slate-700 dark:bg-slate-800 ${
         isDragging
           ? 'opacity-40 ring-2 ring-violet-300'
           : 'hover:border-slate-300 hover:shadow-md dark:hover:border-slate-500'
       }`}
     >
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          {task.priority && (
-            <span
-              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset ${priorityBadgeClass[task.priority]}`}
-            >
-              {taskPriorityLabel(task.priority)}
-            </span>
-          )}
+      <div className="mb-1.5 flex h-6 items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          {task.priority && !isDone && <PriorityBars priority={task.priority} />}
           {task.label && (
-            <span className="truncate rounded bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+            <span className="truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
               {task.label}
             </span>
           )}
@@ -151,7 +178,13 @@ function TaskCard({
         className="w-full text-left"
         title={hasNotes ? 'Ver anotações' : 'Adicionar anotações'}
       >
-        <h3 className="font-medium leading-snug text-slate-900 dark:text-slate-100">{task.title}</h3>
+        <h3
+          className={`font-medium leading-snug ${
+            isDone ? 'text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-slate-100'
+          }`}
+        >
+          {task.title}
+        </h3>
         {task.description && (
           <p className="mt-1 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">{task.description}</p>
         )}
@@ -186,14 +219,13 @@ function TaskCard({
           </button>
           {task.dueDate && (
             <span
-              title={dueToneLabel[tone] ?? 'Prazo'}
-              className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium ${dueToneClass[tone]}`}
+              title={`Prazo: ${new Date(`${task.dueDate.slice(0, 10)}T00:00:00`).toLocaleDateString('pt-BR')}`}
+              className={`flex items-center gap-1 px-1 ${DUE_TEXT[tone]}`}
             >
-              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <rect x="3" y="4" width="18" height="18" rx="2" />
-                <path d="M16 2v4M8 2v4M3 10h18" />
-              </svg>
-              {formatDueDate(task.dueDate)}
+              {tone === 'overdue' && (
+                <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+              )}
+              {relativeDueLabel(task)}
             </span>
           )}
         </div>
