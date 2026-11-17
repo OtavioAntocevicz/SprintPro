@@ -54,7 +54,13 @@ function stop(e: React.SyntheticEvent) {
 
 const PRIORITY_LEVEL = { low: 1, medium: 2, high: 3 } as const
 
-/** Prioridade como "barras de sinal": monocromático, só a alta ganha cor. */
+const PRIORITY_COLOR = {
+  low: 'text-emerald-500 dark:text-emerald-400',
+  medium: 'text-amber-500 dark:text-amber-400',
+  high: 'text-rose-500 dark:text-rose-400',
+} as const
+
+/** Prioridade como "barras de sinal": verde (baixa), amarelo (média), vermelho (alta). */
 function PriorityBars({ priority }: { priority: 'low' | 'medium' | 'high' }) {
   const level = PRIORITY_LEVEL[priority]
   const label = `Prioridade ${taskPriorityLabel(priority).toLowerCase()}`
@@ -63,9 +69,7 @@ function PriorityBars({ priority }: { priority: 'low' | 'medium' | 'high' }) {
       role="img"
       aria-label={label}
       title={label}
-      className={`inline-flex shrink-0 ${
-        priority === 'high' ? 'text-rose-500 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'
-      }`}
+      className={`inline-flex shrink-0 ${PRIORITY_COLOR[priority]}`}
     >
       <svg viewBox="0 0 14 12" className="h-3 w-3.5" fill="currentColor" aria-hidden="true">
         {[0, 1, 2].map((i) => (
