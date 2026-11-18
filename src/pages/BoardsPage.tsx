@@ -430,6 +430,7 @@ export function BoardsPage() {
           allTasks={filteredTasks}
           members={members}
           categories={categories}
+          boards={boards}
           onLocalPatch={taskState.patchTaskLocal}
           onLocalRemove={taskState.removeTaskLocal}
           onRefetch={taskState.refetch}

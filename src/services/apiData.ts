@@ -87,6 +87,7 @@ export async function updateTask(
     dueDate?: string | null
     assignedTo?: string
     assigneeName?: string
+    boardId?: string
   },
 ) {
   return apiFetchJson<Task>('PATCH', `/api/tasks/${taskId}`, patch)
