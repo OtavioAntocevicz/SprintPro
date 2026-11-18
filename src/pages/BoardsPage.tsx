@@ -71,6 +71,8 @@ export function BoardsPage() {
   }, [boards, boardsLoading, routeBoardId, navigate, searchParams])
 
   const [showTaskModal, setShowTaskModal] = useState(false)
+  const [targetBoardId, setTargetBoardId] = useState('')
+  const showBoardField = boards.length > 1
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deletingBoard, setDeletingBoard] = useState(false)
   const [deleteError, setDeleteError] = useState('')
@@ -167,6 +169,7 @@ export function BoardsPage() {
     setSubmitError('')
     resetCategoryFields()
     resetAssigneeField()
+    setTargetBoardId(activeBoardId ?? '')
     setShowTaskModal(true)
   }
 
@@ -206,7 +209,9 @@ export function BoardsPage() {
 
     try {
       setIsSubmitting(true)
-      let activeBoardIdForTask = activeBoardId
+      const chosenBoardId =
+        showBoardField && boards.some((b) => b.id === targetBoardId) ? targetBoardId : undefined
+      let activeBoardIdForTask = chosenBoardId ?? activeBoardId
       if (!activeBoardIdForTask) {
         const created = await createBoard('Quadro principal', appUser.organizationId)
         activeBoardIdForTask = created.id
@@ -227,7 +232,12 @@ export function BoardsPage() {
         assignedTo: assigneeId,
       })
       setLastAssigneeId(appUser.organizationId, assigneeId)
-      await taskState.refetch()
+      if (activeBoardIdForTask !== activeBoardId) {
+        // Criada em outro quadro: leva o usuário até lá para ver a tarefa.
+        navigate(`/boards/${activeBoardIdForTask}`)
+      } else {
+        await taskState.refetch()
+      }
       setTitle('')
       setDescription('')
       resetCategoryFields()
@@ -457,6 +467,26 @@ export function BoardsPage() {
         }
       >
         <form id="new-task-form" onSubmit={onSubmit} className="grid gap-4 md:grid-cols-2">
+          {showBoardField && (
+            <div className="md:col-span-2">
+              <label htmlFor="new-task-board" className={labelClass}>
+                Quadro
+              </label>
+              <select
+                id="new-task-board"
+                value={targetBoardId}
+                onChange={(e) => setTargetBoardId(e.target.value)}
+                className={inputClass}
+              >
+                {boards.map((board) => (
+                  <option key={board.id} value={board.id}>
+                    {board.name}
+                    {board.id === activeBoardId ? ' (atual)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="md:col-span-2">
             <label htmlFor="new-task-title" className={labelClass}>
               Título
