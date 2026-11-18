@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { deleteTask, updateTask } from '../services/apiData'
-import type { AppUser, Task, TaskCategory } from '../types'
+import type { AppUser, Board, Task, TaskCategory } from '../types'
 import { Modal } from './ui'
 import { buttonClass, inputClass, labelClass } from './uiStyles'
 
@@ -11,6 +11,8 @@ type Props = {
   open: boolean
   members: AppUser[]
   categories: TaskCategory[]
+  /** Quadros da organização; com mais de um, aparece o campo "Quadro" para mover a tarefa. */
+  boards?: Board[]
   onClose: () => void
   onSaved: (task: Task) => void
   /** Exibe a lixeira (a API só permite exclusão pelo gestor). */
@@ -23,6 +25,7 @@ export function TaskEditModal({
   open,
   members,
   categories,
+  boards = [],
   onClose,
   onSaved,
   canDelete = false,
@@ -35,6 +38,7 @@ export function TaskEditModal({
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium')
   const [dueDate, setDueDate] = useState('')
   const [assigneeId, setAssigneeId] = useState('')
+  const [boardId, setBoardId] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -59,6 +63,7 @@ export function TaskEditModal({
     setPriority(task.priority ?? 'medium')
     setDueDate(task.dueDate?.slice(0, 10) ?? '')
     setAssigneeId(task.assignedTo ?? members[0]?.id ?? '')
+    setBoardId(task.boardId)
     setError('')
     setConfirmDelete(false)
   }, [open, task, categories, members])
@@ -67,6 +72,9 @@ export function TaskEditModal({
 
   const showCustomLabel = categorySelect === OTHER_CATEGORY
   const taskId = task.id
+  const showBoardField = boards.length > 1
+  const boardChanged = Boolean(boardId) && boardId !== task.boardId
+  const targetBoardName = boards.find((b) => b.id === boardId)?.name
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -100,6 +108,7 @@ export function TaskEditModal({
         dueDate: dueDate || null,
         assignedTo: assigneeId,
         assigneeName: members.find((m) => m.id === assigneeId)?.fullName,
+        ...(boardChanged ? { boardId } : {}),
       })
       onSaved(updated)
       onClose()
@@ -179,7 +188,7 @@ export function TaskEditModal({
               Cancelar
             </button>
             <button type="submit" form="edit-task-form" disabled={busy} className={buttonClass.primary}>
-              {saving ? 'Salvando...' : 'Salvar'}
+              {saving ? (boardChanged ? 'Movendo...' : 'Salvando...') : boardChanged ? 'Salvar e mover' : 'Salvar'}
             </button>
           </>
         )
@@ -282,6 +291,32 @@ export function TaskEditModal({
             className={inputClass}
           />
         </div>
+        {showBoardField && (
+          <div>
+            <label htmlFor="edit-task-board" className={labelClass}>
+              Quadro
+            </label>
+            <select
+              id="edit-task-board"
+              value={boardId}
+              onChange={(e) => setBoardId(e.target.value)}
+              className={inputClass}
+            >
+              {boards.map((board) => (
+                <option key={board.id} value={board.id}>
+                  {board.name}
+                  {board.id === task.boardId ? ' (atual)' : ''}
+                </option>
+              ))}
+            </select>
+            {boardChanged && (
+              <p className="mt-1.5 text-xs text-violet-700 dark:text-violet-300">
+                Ao salvar, a tarefa vai para <strong>{targetBoardName}</strong> mantendo coluna, anotações e
+                favorito.
+              </p>
+            )}
+          </div>
+        )}
       </form>
     </Modal>
   )

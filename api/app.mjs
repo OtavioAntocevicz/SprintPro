@@ -1092,6 +1092,7 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
   const hasPriority = typeof req.body?.priority === 'string' || req.body?.priority === null
   const hasDueDate = typeof req.body?.dueDate === 'string' || req.body?.dueDate === null
   const hasAssignedTo = typeof req.body?.assignedTo === 'string' || req.body?.assignedTo === null
+  const hasBoardId = typeof req.body?.boardId === 'string'
   const statusIsValid = hasStatus && ['todo', 'doing', 'done'].includes(normalizedStatus)
 
   if (
@@ -1102,7 +1103,8 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
     !hasLabel &&
     !hasPriority &&
     !hasDueDate &&
-    !hasAssignedTo
+    !hasAssignedTo &&
+    !hasBoardId
   ) {
     return res.status(400).json({ error: 'Nada para atualizar.' })
   }
@@ -1151,10 +1153,30 @@ app.patch('/api/tasks/:id', authRequired, async (req, res) => {
     }
   }
 
+  let nextBoardId = null
+  if (hasBoardId) {
+    nextBoardId = String(req.body.boardId).trim()
+    if (!nextBoardId) return res.status(400).json({ error: 'Quadro é obrigatório.' })
+    try {
+      const boardOk = await pool.query(
+        'SELECT id FROM boards WHERE id = $1 AND organization_id = $2',
+        [nextBoardId, req.user.orgId],
+      )
+      if (!boardOk.rowCount) return res.status(404).json({ error: 'Quadro não encontrado.' })
+    } catch (e) {
+      console.error(e)
+      return res.status(500).json({ error: 'Erro ao validar quadro.' })
+    }
+  }
+
   try {
     const updates = []
     const values = []
     let idx = 1
+    if (hasBoardId) {
+      updates.push(`board_id = $${idx++}`)
+      values.push(nextBoardId)
+    }
     if (statusIsValid) {
       updates.push(`status = $${idx++}`)
       values.push(normalizedStatus)

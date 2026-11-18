@@ -11,12 +11,13 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { useState } from 'react'
-import { updateTaskFavorite, updateTaskStatus } from '../services/apiData'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { updateTask, updateTaskFavorite, updateTaskStatus } from '../services/apiData'
 import { TaskEditModal } from './TaskEditModal'
 import { TaskNotesModal } from './TaskNotesModal'
 import { useAuthStore } from '../store/authStore'
-import type { AppUser, Task, TaskCategory, TaskStatus } from '../types'
+import type { AppUser, Board, Task, TaskCategory, TaskStatus } from '../types'
 import type { TaskLocalPatch } from '../hooks/useTasks'
 import { taskPriorityLabel } from '../utils/taskPriorityLabel'
 import { taskPhase } from '../utils/taskStatus'
@@ -40,6 +41,7 @@ type Props = {
   allTasks: Task[]
   members: AppUser[]
   categories: TaskCategory[]
+  boards?: Board[]
   onLocalPatch: (taskId: string, patch: TaskLocalPatch) => void
   onLocalRemove: (taskId: string) => void
   onRefetch: () => void
@@ -329,13 +331,57 @@ export function KanbanSection({
   allTasks,
   members,
   categories,
+  boards = [],
   onLocalPatch,
   onLocalRemove,
+  onRefetch,
 }: Props) {
   const [active, setActive] = useState<Task | null>(null)
   const [notesTask, setNotesTask] = useState<Task | null>(null)
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [feedback, setFeedback] = useState('')
+  const [moved, setMoved] = useState<{ task: Task; fromBoardId: string; toBoardId: string } | null>(null)
+  const [undoing, setUndoing] = useState(false)
+
+  useEffect(() => {
+    if (!moved || undoing) return
+    const timer = window.setTimeout(() => setMoved(null), 10000)
+    return () => window.clearTimeout(timer)
+  }, [moved, undoing])
+
+  function onTaskSaved(previous: Task, updated: Task) {
+    if (updated.boardId && updated.boardId !== previous.boardId) {
+      onLocalRemove(updated.id)
+      setMoved({ task: updated, fromBoardId: previous.boardId, toBoardId: updated.boardId })
+      return
+    }
+    onLocalPatch(updated.id, {
+      title: updated.title,
+      description: updated.description,
+      label: updated.label,
+      priority: updated.priority,
+      dueDate: updated.dueDate,
+      assigneeName: updated.assigneeName,
+      assignedTo: updated.assignedTo,
+    })
+  }
+
+  async function undoMove() {
+    if (!moved) return
+    setUndoing(true)
+    setFeedback('')
+    try {
+      await updateTask(moved.task.id, { boardId: moved.fromBoardId })
+      setMoved(null)
+      onRefetch()
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : 'Não foi possível desfazer a mudança de quadro.')
+    } finally {
+      setUndoing(false)
+    }
+  }
+
+  const movedToName = moved ? boards.find((b) => b.id === moved.toBoardId)?.name ?? 'outro quadro' : ''
   const appUser = useAuthStore((s) => s.appUser)
   const canFavorite = appUser?.role === 'owner' || appUser?.canFavorite === true
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -414,6 +460,40 @@ export function KanbanSection({
           {feedback}
         </p>
       )}
+      {moved && (
+        <div
+          role="status"
+          className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-900 dark:border-violet-900 dark:bg-violet-950/60 dark:text-violet-100"
+        >
+          <span className="min-w-0 flex-1">
+            <strong className="font-semibold">{moved.task.title}</strong> foi movida para{' '}
+            <strong className="font-semibold">{movedToName}</strong>.
+          </span>
+          <Link
+            to={`/boards/${moved.toBoardId}`}
+            onClick={() => setMoved(null)}
+            className="font-medium text-violet-700 underline-offset-2 hover:underline dark:text-violet-300"
+          >
+            Abrir quadro
+          </Link>
+          <button
+            type="button"
+            onClick={() => void undoMove()}
+            disabled={undoing}
+            className="font-medium text-violet-700 underline-offset-2 hover:underline disabled:opacity-60 dark:text-violet-300"
+          >
+            {undoing ? 'Desfazendo...' : 'Desfazer'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMoved(null)}
+            aria-label="Fechar aviso"
+            className="grid h-6 w-6 place-items-center rounded text-violet-500 hover:bg-violet-100 dark:hover:bg-violet-900"
+          >
+            ×
+          </button>
+        </div>
+      )}
       <div className="grid gap-4 lg:grid-cols-3">
         {ORDER.map((col) => (
           <Column
@@ -442,19 +522,13 @@ export function KanbanSection({
         open={editTask !== null}
         members={members}
         categories={categories}
+        boards={boards}
         onClose={() => setEditTask(null)}
         canDelete={appUser?.role === 'owner'}
         onDeleted={onLocalRemove}
-        onSaved={(updated) =>
-          onLocalPatch(updated.id, {
-            description: updated.description,
-            label: updated.label,
-            priority: updated.priority,
-            dueDate: updated.dueDate,
-            assigneeName: updated.assigneeName,
-            assignedTo: updated.assignedTo,
-          })
-        }
+        onSaved={(updated) => {
+          if (editTask) onTaskSaved(editTask, updated)
+        }}
       />
     </DndContext>
   )
